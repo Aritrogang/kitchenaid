@@ -1,0 +1,8 @@
+{
+  "_comment": "Dietary-rule engine. Each restricted diet -> diet_props that are forbidden, matched against ingredient attributes in ingredients.json (NOT substrings). 'none' has no rule.",
+  "vegan":        {"forbidden_props": ["meat", "poultry", "pork", "fish", "shellfish", "dairy", "egg", "honey", "gelatin", "animal"]},
+  "vegetarian":   {"forbidden_props": ["meat", "poultry", "pork", "fish", "shellfish", "gelatin"]},
+  "pescatarian":  {"forbidden_props": ["meat", "poultry", "pork"]},
+  "halal":        {"forbidden_props": ["pork", "alcohol"]},
+  "kosher":       {"forbidden_props": ["pork", "shellfish"]}
+}

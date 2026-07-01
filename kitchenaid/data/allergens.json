@@ -1,0 +1,12 @@
+{
+  "_comment": "Allergen vocabulary (US 'big 9' + sesame) with display labels. The ingredient->allergen mapping is the authority and lives in ingredients.json.",
+  "peanut": "Peanut",
+  "tree_nut": "Tree nut",
+  "milk": "Milk/Dairy",
+  "egg": "Egg",
+  "soy": "Soy",
+  "wheat": "Wheat/Gluten",
+  "fish": "Fish",
+  "shellfish": "Shellfish",
+  "sesame": "Sesame"
+}

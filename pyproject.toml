@@ -1,0 +1,24 @@
+[project]
+name = "kitchenaid"
+version = "0.1.0"
+description = "A kitchen agent that adapts to your profile, tastes, and the moment."
+requires-python = ">=3.10"
+# Core loop has ZERO required dependencies. The Claude-backed chef is optional.
+dependencies = []
+
+[project.optional-dependencies]
+llm = ["anthropic>=0.40"]
+dev = ["pytest>=8.0", "hypothesis>=6.0"]
+
+[project.scripts]
+kitchenaid = "kitchenaid.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["kitchenaid"]
+
+[tool.setuptools.package-data]
+kitchenaid = ["data/*.json"]

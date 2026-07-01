@@ -1,0 +1,10 @@
+{
+  "_comment": "What's on hand, in grams. Keys are resolved to canonical ingredients on load.",
+  "olive oil": 400,
+  "garlic": 80,
+  "onion": 300,
+  "white rice": 1000,
+  "chicken breast": 300,
+  "spinach": 150,
+  "lemon": 60
+}

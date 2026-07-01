@@ -1,0 +1,199 @@
+[
+  {
+    "id": "garlic-butter-chicken-spinach",
+    "name": "Garlic Butter Chicken & Spinach",
+    "cuisine": "American",
+    "time_min": 20,
+    "servings": 2,
+    "skill": "beginner",
+    "equipment": ["stovetop", "pan"],
+    "diet_tags": [],
+    "spice_level": 0,
+    "ingredients": [
+      {"item": "chicken breast", "grams": 300},
+      {"item": "butter", "grams": 30},
+      {"item": "spinach", "grams": 200},
+      {"item": "garlic", "grams": 15},
+      {"item": "olive oil", "grams": 10},
+      {"item": "lemon", "grams": 20}
+    ]
+  },
+  {
+    "id": "lemon-chicken-rice",
+    "name": "Lemon Garlic Chicken & Rice",
+    "cuisine": "American",
+    "time_min": 30,
+    "servings": 2,
+    "skill": "beginner",
+    "equipment": ["stovetop", "pan"],
+    "diet_tags": [],
+    "spice_level": 0,
+    "ingredients": [
+      {"item": "chicken breast", "grams": 300},
+      {"item": "white rice", "grams": 300},
+      {"item": "lemon", "grams": 30},
+      {"item": "garlic", "grams": 12},
+      {"item": "olive oil", "grams": 15},
+      {"item": "onion", "grams": 60}
+    ]
+  },
+  {
+    "id": "chickpea-spinach-curry",
+    "name": "Chickpea & Spinach Curry",
+    "cuisine": "Indian",
+    "time_min": 25,
+    "servings": 3,
+    "skill": "beginner",
+    "equipment": ["stovetop", "pot"],
+    "diet_tags": ["vegan", "vegetarian", "halal", "pescatarian"],
+    "spice_level": 2,
+    "ingredients": [
+      {"item": "chickpeas", "grams": 240},
+      {"item": "spinach", "grams": 150},
+      {"item": "coconut milk", "grams": 200},
+      {"item": "onion", "grams": 80},
+      {"item": "tomato", "grams": 120},
+      {"item": "garlic", "grams": 12},
+      {"item": "curry powder", "grams": 12},
+      {"item": "olive oil", "grams": 15}
+    ]
+  },
+  {
+    "id": "tofu-veggie-stirfry",
+    "name": "Tofu Veggie Stir-fry",
+    "cuisine": "Chinese",
+    "time_min": 20,
+    "servings": 2,
+    "skill": "beginner",
+    "equipment": ["stovetop", "wok"],
+    "diet_tags": ["vegan", "vegetarian", "halal", "pescatarian"],
+    "spice_level": 1,
+    "ingredients": [
+      {"item": "tofu", "grams": 250},
+      {"item": "broccoli", "grams": 150},
+      {"item": "bell pepper", "grams": 120},
+      {"item": "soy sauce", "grams": 30},
+      {"item": "garlic", "grams": 10},
+      {"item": "ginger", "grams": 8},
+      {"item": "olive oil", "grams": 12},
+      {"item": "scallion", "grams": 20}
+    ]
+  },
+  {
+    "id": "peanut-noodles",
+    "name": "Spicy Peanut Noodles",
+    "cuisine": "Thai",
+    "time_min": 20,
+    "servings": 2,
+    "skill": "beginner",
+    "equipment": ["stovetop", "pot"],
+    "diet_tags": ["vegan", "vegetarian"],
+    "spice_level": 2,
+    "ingredients": [
+      {"item": "noodles", "grams": 300},
+      {"item": "peanut butter", "grams": 60},
+      {"item": "soy sauce", "grams": 25},
+      {"item": "garlic", "grams": 10},
+      {"item": "ginger", "grams": 8},
+      {"item": "scallion", "grams": 20},
+      {"item": "carrot", "grams": 60}
+    ]
+  },
+  {
+    "id": "black-bean-quesadilla",
+    "name": "Black Bean Quesadilla",
+    "cuisine": "Mexican",
+    "time_min": 15,
+    "servings": 2,
+    "skill": "beginner",
+    "equipment": ["stovetop", "pan"],
+    "diet_tags": ["vegetarian"],
+    "spice_level": 1,
+    "ingredients": [
+      {"item": "tortilla", "grams": 120},
+      {"item": "black beans", "grams": 200},
+      {"item": "cheddar cheese", "grams": 100},
+      {"item": "bell pepper", "grams": 80},
+      {"item": "onion", "grams": 50}
+    ]
+  },
+  {
+    "id": "salmon-quinoa-bowl",
+    "name": "Salmon & Quinoa Bowl",
+    "cuisine": "Mediterranean",
+    "time_min": 30,
+    "servings": 2,
+    "skill": "intermediate",
+    "equipment": ["oven", "stovetop"],
+    "diet_tags": ["pescatarian"],
+    "spice_level": 0,
+    "ingredients": [
+      {"item": "salmon", "grams": 280},
+      {"item": "quinoa", "grams": 250},
+      {"item": "broccoli", "grams": 150},
+      {"item": "olive oil", "grams": 15},
+      {"item": "lemon", "grams": 25},
+      {"item": "garlic", "grams": 8}
+    ]
+  },
+  {
+    "id": "lentil-soup",
+    "name": "Hearty Lentil Soup",
+    "cuisine": "Mediterranean",
+    "time_min": 35,
+    "servings": 4,
+    "skill": "beginner",
+    "equipment": ["stovetop", "pot"],
+    "diet_tags": ["vegan", "vegetarian", "halal", "pescatarian"],
+    "spice_level": 1,
+    "ingredients": [
+      {"item": "lentils", "grams": 300},
+      {"item": "carrot", "grams": 120},
+      {"item": "onion", "grams": 100},
+      {"item": "tomato", "grams": 150},
+      {"item": "garlic", "grams": 12},
+      {"item": "cumin", "grams": 6},
+      {"item": "olive oil", "grams": 15},
+      {"item": "vegetable broth", "grams": 600}
+    ]
+  },
+  {
+    "id": "veggie-omelette",
+    "name": "Veggie Omelette",
+    "cuisine": "French",
+    "time_min": 12,
+    "servings": 1,
+    "skill": "beginner",
+    "equipment": ["stovetop", "pan"],
+    "diet_tags": ["vegetarian"],
+    "spice_level": 0,
+    "ingredients": [
+      {"item": "egg", "grams": 150},
+      {"item": "bell pepper", "grams": 60},
+      {"item": "spinach", "grams": 50},
+      {"item": "cheddar cheese", "grams": 40},
+      {"item": "butter", "grams": 10}
+    ]
+  },
+  {
+    "id": "shrimp-fried-rice",
+    "name": "Shrimp Fried Rice",
+    "cuisine": "Chinese",
+    "time_min": 20,
+    "servings": 2,
+    "skill": "intermediate",
+    "equipment": ["stovetop", "wok"],
+    "diet_tags": ["pescatarian"],
+    "spice_level": 1,
+    "ingredients": [
+      {"item": "shrimp", "grams": 200},
+      {"item": "white rice", "grams": 350},
+      {"item": "egg", "grams": 100},
+      {"item": "carrot", "grams": 60},
+      {"item": "scallion", "grams": 20},
+      {"item": "soy sauce", "grams": 25},
+      {"item": "garlic", "grams": 10},
+      {"item": "olive oil", "grams": 12}
+    ]
+  }
+]

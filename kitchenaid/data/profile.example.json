@@ -1,0 +1,15 @@
+{
+  "user_id": "u_demo",
+  "name": "Sam",
+  "allergies": ["shellfish"],
+  "diet": "none",
+  "calories_target": 700,
+  "protein_target_g": 35,
+  "budget_per_meal_usd": 6.0,
+  "equipment": ["stovetop", "pan", "pot", "oven", "wok"],
+  "skill": "beginner",
+  "weeknight_minutes": 30,
+  "dislikes": ["mushroom"],
+  "liked_dishes": ["Lemon Garlic Chicken & Rice", "Chickpea & Spinach Curry"],
+  "disliked_dishes": []
+}

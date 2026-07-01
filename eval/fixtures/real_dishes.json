@@ -1,0 +1,20 @@
+{
+  "_comment": "Regression corpus — REAL dishes captured from live generative-chef harvests (Haiku, 2026-07-01), with the model's own messy ingredient strings preserved. Frozen so the ingredient DB + resolver can't silently regress on real output. The eval harness replays these deterministically (no API) and asserts: 0 mis-resolutions, 0 unsafe approvals, and coverage above a floor.",
+  "dishes": [
+    {"name": "Chickpea Curry with Coconut Rice", "ingredients": ["canned chickpeas", "coconut milk", "onion", "garlic", "fresh ginger", "tomato paste", "curry powder", "coconut oil", "vegetable broth", "white rice", "fresh cilantro", "salt and pepper"]},
+    {"name": "Pasta Primavera with Garlic and Oil", "ingredients": ["spaghetti", "fresh zucchini", "bell peppers", "cherry tomatoes", "garlic cloves", "extra virgin olive oil", "fresh basil", "lemon juice", "salt and pepper"]},
+    {"name": "Black Bean Tacos with Avocado", "ingredients": ["canned black beans", "corn tortillas", "avocado", "red onion", "fresh cilantro", "lime juice", "cumin powder", "garlic powder", "vegetable oil", "shredded lettuce", "diced tomato", "salsa", "salt and pepper"]},
+    {"name": "Stir-Fried Tofu with Broccoli", "ingredients": ["firm tofu", "fresh broccoli", "bell pepper", "soy sauce", "sesame oil", "garlic cloves", "fresh ginger", "vegetable oil", "rice vinegar", "cornstarch", "vegetable broth", "white rice", "sesame seeds"]},
+    {"name": "Lentil and Vegetable Soup", "ingredients": ["dried red lentils", "vegetable broth", "onion", "carrot", "celery", "canned diced tomatoes", "garlic cloves", "olive oil", "dried oregano", "bay leaf", "fresh spinach", "lemon juice", "salt and pepper"]},
+    {"name": "Buddha Bowl with Quinoa and Tahini Dressing", "ingredients": ["quinoa", "sweet potato", "chickpeas", "kale", "shredded carrots", "red cabbage", "tahini", "lemon juice", "garlic clove", "water", "olive oil", "salt and pepper"]},
+    {"name": "Pad Thai with Peanut Sauce", "ingredients": ["rice noodles", "extra-firm tofu", "bell peppers", "carrots", "snap peas", "peanut butter", "lime juice", "soy sauce", "garlic cloves", "fresh ginger", "vegetable oil", "crushed peanuts", "green onions", "salt and pepper"]},
+    {"name": "Roasted Vegetable and Farro Grain Bowl", "ingredients": ["farro", "eggplant", "zucchini", "red bell pepper", "red onion", "olive oil", "balsamic vinegar", "garlic cloves", "fresh thyme", "cherry tomatoes", "fresh parsley", "salt and pepper"]},
+    {"name": "Three-Bean Chili", "ingredients": ["canned kidney beans", "canned black beans", "canned pinto beans", "canned diced tomatoes", "onion", "bell pepper", "garlic cloves", "chili powder", "cumin powder", "olive oil", "vegetable broth", "fresh cilantro", "salt and pepper"]},
+    {"name": "Chickpea and Sweet Potato Buddha Wrap", "ingredients": ["large tortillas", "roasted chickpeas", "sweet potato", "avocado", "shredded cabbage", "carrot", "fresh cilantro", "lime juice", "vegetable oil", "cumin powder", "paprika", "tahini", "salt and pepper"]},
+    {"name": "Baked Salmon with Asparagus and Rice", "ingredients": ["salmon fillets", "white rice", "lemon juice", "garlic cloves", "olive oil", "fresh dill", "asparagus", "salt and pepper"]},
+    {"name": "Greek Salad with Feta", "ingredients": ["romaine lettuce", "cucumber", "cherry tomatoes", "red onion", "kalamata olives", "feta cheese", "extra virgin olive oil", "red wine vinegar", "dried oregano"]},
+    {"name": "Shrimp Scampi Pasta", "ingredients": ["shrimp", "spaghetti", "garlic cloves", "butter", "white wine", "lemon juice", "fresh parsley", "red pepper flakes"]},
+    {"name": "Veggie Omelette with Toast", "ingredients": ["scrambled eggs", "bell pepper", "baby spinach", "cheddar cheese", "butter", "whole wheat bread", "salt and pepper"]},
+    {"name": "Beef and Broccoli Stir Fry", "ingredients": ["ground beef", "fresh broccoli", "soy sauce", "garlic cloves", "fresh ginger", "cornstarch", "vegetable oil", "cooked white rice", "green onions"]}
+  ]
+}
