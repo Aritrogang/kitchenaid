@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="kitchenaid — your daily kitchen assistant. Ask for a quick dinner, a shopping list, or a week of meals." />
+  <meta name="color-scheme" content="light dark" />
+  <title>kitchenaid — your daily kitchen assistant</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8D%B3%3C/text%3E%3C/svg%3E" />
+</head>
+<body>
+  <!-- Skip link for keyboard / screen-reader users -->
+  <a class="skip-link" href="#composer">Skip to chat input</a>
+
+  <div class="app">
+    <!-- ============ Header ============ -->
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">🍳</span>
+        <div class="brand-text">
+          <h1 class="brand-name">kitchenaid</h1>
+          <p class="brand-tagline">your daily kitchen assistant</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <span id="health-badge" class="health-badge health-badge--unknown"
+              role="status" aria-live="polite" title="Backend connection status">
+          <span class="health-dot" aria-hidden="true"></span>
+          <span class="health-label">Checking…</span>
+        </span>
+
+        <button id="profile-btn" class="icon-btn" type="button"
+                aria-haspopup="dialog" aria-controls="profile-dialog">
+          <span aria-hidden="true">👤</span>
+          <span class="icon-btn-label">Profile</span>
+        </button>
+
+        <button id="theme-btn" class="icon-btn" type="button" aria-pressed="false"
+                aria-label="Toggle dark mode">
+          <span class="theme-icon" aria-hidden="true">🌙</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ============ Conversation ============ -->
+    <main class="conversation" id="conversation" aria-live="polite" aria-label="Conversation">
+      <!-- Messages injected here by app.js -->
+    </main>
+
+    <!-- ============ Suggestion chips + composer ============ -->
+    <div class="composer-area">
+      <div class="suggestions" id="suggestions" aria-label="Quick suggestions" role="group">
+        <button class="chip" type="button" data-query="quick dinner">🍽️ Quick dinner</button>
+        <button class="chip" type="button" data-query="what do I need to buy for dinner">🛒 What to buy</button>
+        <button class="chip" type="button" data-query="plan my week">📅 Plan my week</button>
+        <button class="chip" type="button" data-query="use up the fridge — I have lentils and carrots">🥕 Use up the fridge</button>
+      </div>
+
+      <form class="composer" id="composer" autocomplete="off">
+        <label class="visually-hidden" for="query-input">Ask kitchenaid something</label>
+        <input
+          id="query-input"
+          class="composer-input"
+          type="text"
+          name="query"
+          placeholder="Ask for a meal, a shopping list, or say how a dish went…"
+          enterkeyhint="send"
+          autocomplete="off"
+        />
+        <button id="send-btn" class="send-btn" type="submit">
+          <span class="send-label">Send</span>
+          <span aria-hidden="true">↑</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ Profile dialog ============ -->
+  <dialog id="profile-dialog" class="dialog" aria-labelledby="profile-title">
+    <form method="dialog" class="profile-form" id="profile-form">
+      <div class="dialog-head">
+        <h2 id="profile-title">Your kitchen profile</h2>
+        <button type="button" class="icon-btn dialog-close" id="profile-cancel"
+                aria-label="Close profile">✕</button>
+      </div>
+
+      <p class="dialog-hint">
+        Everything here is stored only in this browser and sent with each request so your
+        suggestions stay safe and personal.
+      </p>
+
+      <div class="field">
+        <label for="pf-name">Name</label>
+        <input id="pf-name" name="name" type="text" placeholder="e.g. Sam" />
+      </div>
+
+      <fieldset class="field">
+        <legend>Allergies <span class="field-note">select any that apply</span></legend>
+        <div class="chip-select" id="pf-allergies" role="group" aria-label="Allergies">
+          <!-- allergen toggle chips injected by app.js -->
+        </div>
+      </fieldset>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="pf-diet">Diet</label>
+          <select id="pf-diet" name="diet">
+            <option value="none">No restriction</option>
+            <option value="vegetarian">Vegetarian</option>
+            <option value="vegan">Vegan</option>
+            <option value="pescatarian">Pescatarian</option>
+            <option value="halal">Halal</option>
+            <option value="kosher">Kosher</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="pf-budget">Budget / meal (USD)</label>
+          <input id="pf-budget" name="budget" type="number" min="0" step="0.5"
+                 inputmode="decimal" placeholder="e.g. 6" />
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label for="pf-skill">Cooking skill</label>
+          <select id="pf-skill" name="skill">
+            <option value="">Unspecified</option>
+            <option value="beginner">Beginner</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="advanced">Advanced</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="pf-dislikes">Dislikes <span class="field-note">comma-separated</span></label>
+          <input id="pf-dislikes" name="dislikes" type="text" placeholder="e.g. mushroom, olives" />
+        </div>
+      </div>
+
+      <details class="advanced">
+        <summary>Connection settings</summary>
+        <div class="field">
+          <label for="pf-api">API base URL</label>
+          <input id="pf-api" name="api" type="url" spellcheck="false"
+                 placeholder="http://localhost:8000" />
+          <p class="field-note">Where the kitchenaid backend is running.</p>
+        </div>
+      </details>
+
+      <div class="dialog-actions">
+        <button type="button" class="btn btn--ghost" id="profile-cancel-2">Cancel</button>
+        <button type="submit" class="btn btn--primary" id="profile-save">Save profile</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Template: assistant "thinking" indicator -->
+  <template id="tpl-typing">
+    <div class="msg msg--assistant">
+      <div class="avatar" aria-hidden="true">🍳</div>
+      <div class="bubble typing" aria-label="kitchenaid is thinking">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      </div>
+    </div>
+  </template>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
