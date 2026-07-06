@@ -14,7 +14,7 @@ Run:  uvicorn kitchenaid.api:app --reload      (needs: pip install fastapi uvico
 
 from typing import Optional
 
-from .concierge import Concierge, ConciergeResponse
+from .concierge import AGENT_TEAM, AgentOptions, Concierge, ConciergeResponse
 from .models import Profile
 from .pantry import Pantry
 from .profile_keeper import ProfileKeeper
@@ -33,12 +33,15 @@ class KitchenaidService:
             self._sessions[user_id] = Concierge()
         return self._sessions[user_id]
 
-    def chat(self, user_id: str, query: str, profile: dict, pantry: Optional[dict] = None) -> dict:
+    def chat(self, user_id: str, query: str, profile: dict, pantry: Optional[dict] = None,
+             options: Optional[dict] = None) -> dict:
         prof = Profile.from_dict(profile)
         pan = Pantry.from_dict(pantry) if pantry else None
+        opts = AgentOptions.from_dict(options)
         taste = self.keeper.load_taste(user_id)                 # Profile Keeper: read
-        resp = self._concierge(user_id).handle(query, prof, pan, taste)
-        self.keeper.save_taste(user_id, taste)                  # Profile Keeper: write (feedback persists)
+        resp = self._concierge(user_id).handle(query, prof, pan, taste, opts)
+        if opts.taster:                                         # respect the learning toggle
+            self.keeper.save_taste(user_id, taste)              # Profile Keeper: write
         return _serialize(resp)
 
 
@@ -104,17 +107,24 @@ def create_app():
         query: str
         profile: dict
         pantry: Optional[dict] = None   # Optional[] not `dict | None`: pydantic evaluates this on 3.9
+        options: Optional[dict] = None  # agent toggles: creative_chef / shopper / taster
 
     @app.get("/health")
     def health() -> dict:
         return {"status": "ok",
                 "agents": ["Concierge", "Chef", "Dietitian", "Shopper", "ProfileKeeper", "Taster"]}
 
+    @app.get("/agents")
+    def agents() -> dict:
+        """The team, as data: who they are, what they do, and which can be toggled.
+        The Dietitian is not toggleable by design — safety is structural."""
+        return {"agents": AGENT_TEAM}
+
     @app.post("/chat")
     def chat(req: ChatRequest) -> dict:
         """Natural-language turn: the Concierge routes to the right agents. Try queries like
         'quick dinner', 'what do I need to buy for dinner', 'that was too spicy', 'plan my week'."""
-        return service.chat(req.user_id, req.query, req.profile, req.pantry)
+        return service.chat(req.user_id, req.query, req.profile, req.pantry, req.options)
 
     return app
 

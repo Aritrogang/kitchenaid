@@ -1,13 +1,14 @@
 // =========================================================================
-// app.js — UI controller. Wires the composer + profile dialog to the API,
-// renders chat messages, meal cards, grocery lists, and the trace panel.
+// app.js — UI controller. Composable render functions over a single state
+// source (store.js). No framework, no emojis: inline SVG icons via <use>.
 // =========================================================================
 
-import { sendChat, checkHealth, ApiError, normalizeBaseUrl } from "./api.js";
+import { sendChat, checkHealth, fetchAgents, ApiError, normalizeBaseUrl } from "./api.js";
 import {
   ALLERGENS, DEFAULT_API_URL,
   getUserId, getApiUrl, setApiUrl, getTheme, setTheme,
   loadProfile, saveProfile, hasProfile, toWireProfile,
+  loadAgentOptions, setAgentOption,
 } from "./store.js";
 
 // ---------- Element handles ----------
@@ -21,10 +22,13 @@ const healthBadge = $("#health-badge");
 const healthLabel = healthBadge.querySelector(".health-label");
 const themeBtn = $("#theme-btn");
 const profileBtn = $("#profile-btn");
+const agentsBtn = $("#agents-btn");
 const dialog = $("#profile-dialog");
+const agentsDialog = $("#agents-dialog");
+const agentsBody = $("#agents-body");
 const profileForm = $("#profile-form");
+const creativeIndicator = $("#creative-indicator");
 
-// A11y-friendly labels for allergen chips (snake_case -> Title Case).
 const ALLERGEN_LABELS = {
   peanut: "Peanut", tree_nut: "Tree nut", milk: "Milk", egg: "Egg",
   soy: "Soy", wheat: "Wheat", fish: "Fish", shellfish: "Shellfish", sesame: "Sesame",
@@ -32,13 +36,13 @@ const ALLERGEN_LABELS = {
 
 // ---------- App state ----------
 const userId = getUserId();
-let inFlight = false; // guard against double-sends
+let inFlight = false;        // guard against double-sends
+let agentTeam = null;        // cached GET /agents payload
 
 // ============================================================
 // Small DOM helpers
 // ============================================================
 
-/** Create an element with optional class, text and attributes. */
 function el(tag, { cls, text, html, attrs } = {}) {
   const node = document.createElement(tag);
   if (cls) node.className = cls;
@@ -48,38 +52,50 @@ function el(tag, { cls, text, html, attrs } = {}) {
   return node;
 }
 
-/** Format money as $X.XX; tolerant of null/undefined. */
+/** Inline SVG icon referencing the sprite in index.html. */
+function icon(name, cls = "icon") {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("class", cls);
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  use.setAttribute("href", `#i-${name}`);
+  svg.append(use);
+  return svg;
+}
+
 function money(n) {
   const v = Number(n);
   return Number.isFinite(v) ? `$${v.toFixed(2)}` : "—";
 }
 
-/** Round grams for display (whole numbers read cleaner on a list). */
 function grams(g) {
   const v = Number(g);
   return Number.isFinite(v) ? `${Math.round(v)} g` : "";
 }
 
-/** Keep the conversation scrolled to the newest message. */
 function scrollToEnd() {
   conversation.scrollTop = conversation.scrollHeight;
 }
 
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 // ============================================================
-// Rendering: user + assistant messages
+// Messages
 // ============================================================
 
 function renderUserMessage(text) {
   const msg = el("div", { cls: "msg msg--user" });
-  msg.append(
-    el("div", { cls: "avatar", text: "🧑‍🍳", attrs: { "aria-hidden": "true" } }),
-    el("div", { cls: "bubble", text })
-  );
+  const avatar = el("div", { cls: "avatar", attrs: { "aria-hidden": "true" } });
+  avatar.append(icon("user", "icon icon--sm"));
+  msg.append(avatar, el("div", { cls: "bubble", text }));
   conversation.append(msg);
   scrollToEnd();
 }
 
-/** Insert the animated "thinking" indicator and return its node for removal. */
 function renderTyping() {
   const tpl = $("#tpl-typing");
   const node = tpl.content.firstElementChild.cloneNode(true);
@@ -88,21 +104,16 @@ function renderTyping() {
   return node;
 }
 
-/**
- * Render a full assistant turn: the message bubble, an optional meal card,
- * an optional grocery card, and the collapsible trace panel.
- */
 function renderAssistantResponse(data) {
   const msg = el("div", { cls: "msg msg--assistant" });
-  msg.append(el("div", { cls: "avatar", text: "🍳", attrs: { "aria-hidden": "true" } }));
+  const avatar = el("div", { cls: "avatar", attrs: { "aria-hidden": "true" } });
+  avatar.append(icon("pot", "icon icon--sm"));
+  msg.append(avatar);
 
   const stack = el("div", { cls: "msg-stack" });
 
-  // Message text (may be multi-line — preserve line breaks as paragraphs).
   const bubble = el("div", { cls: "bubble" });
-  const lines = String(data.message ?? "").split("\n");
-  for (const line of lines) {
-    // Empty lines become spacing; non-empty become <p>.
+  for (const line of String(data.message ?? "").split("\n")) {
     if (line.trim() === "") continue;
     bubble.append(el("p", { text: line }));
   }
@@ -111,38 +122,27 @@ function renderAssistantResponse(data) {
 
   if (data.meal) stack.append(renderMealCard(data.meal));
   if (data.grocery) stack.append(renderGroceryCard(data.grocery));
-
-  // Trace panel — the multi-agent highlight.
-  if (Array.isArray(data.trace) && data.trace.length) {
-    stack.append(renderTrace(data));
-  }
+  if (Array.isArray(data.trace) && data.trace.length) stack.append(renderTrace(data));
 
   msg.append(stack);
   conversation.append(msg);
   scrollToEnd();
 }
 
-/** Cuisine → emoji so meal cards get a quick visual anchor. */
-const CUISINE_EMOJI = {
-  american: "🍔", indian: "🍛", chinese: "🥡", thai: "🍜", mexican: "🌮",
-  mediterranean: "🫒", french: "🥐", italian: "🍝", japanese: "🍱", greek: "🥗",
-};
+// ============================================================
+// Meal card
+// ============================================================
 
 function renderMealCard(meal) {
   const card = el("div", { cls: "meal-card" });
 
   const head = el("div", { cls: "meal-head" });
-  const emoji = CUISINE_EMOJI[String(meal.cuisine || "").toLowerCase()] || "🍽️";
-  const titleRow = el("div", { cls: "meal-title-row" });
-  titleRow.append(el("span", { cls: "meal-emoji", text: emoji, attrs: { "aria-hidden": "true" } }));
-  titleRow.append(el("h3", { cls: "meal-title", text: meal.name || "Your meal" }));
-  head.append(titleRow);
+  head.append(el("h3", { cls: "meal-title", text: meal.name || "Your meal" }));
   const meta = [meal.cuisine, meal.time_min ? `${meal.time_min} min` : null,
     meal.servings ? `serves ${meal.servings}` : null].filter(Boolean).join(" · ");
   if (meta) head.append(el("p", { cls: "meal-cuisine", text: meta }));
   card.append(head);
 
-  // Stat strip
   const stats = el("div", { cls: "meal-stats" });
   const stat = (value, label) => {
     const s = el("div", { cls: "stat" });
@@ -151,30 +151,31 @@ function renderMealCard(meal) {
     return s;
   };
   stats.append(
-    stat(money(meal.cost_per_serving_usd), "$ / serving"),
+    stat(money(meal.cost_per_serving_usd), "per serving"),
     stat(meal.time_min != null ? `${meal.time_min}m` : "—", "time"),
-    stat(meal.calories_per_serving != null ? Math.round(meal.calories_per_serving) : "—", "cal / serv"),
+    stat(meal.calories_per_serving != null ? Math.round(meal.calories_per_serving) : "—", "calories"),
     stat(meal.protein_per_serving_g != null ? `${Math.round(meal.protein_per_serving_g)}g` : "—", "protein"),
   );
   card.append(stats);
 
   const body = el("div", { cls: "meal-body" });
 
-  // Gentle warning flags
   if (Array.isArray(meal.flags) && meal.flags.length) {
     const flags = el("div", { cls: "flags" });
-    for (const f of meal.flags) flags.append(el("div", { cls: "flag", text: f }));
+    for (const f of meal.flags) {
+      const flag = el("div", { cls: "flag" });
+      flag.append(icon("alert", "icon icon--sm"), el("span", { text: f }));
+      flags.append(flag);
+    }
     body.append(flags);
   }
 
-  // "Why" bullets
   if (Array.isArray(meal.why) && meal.why.length) {
     const why = el("ul", { cls: "why-list" });
     for (const w of meal.why) why.append(el("li", { text: w }));
     body.append(why);
   }
 
-  // Ingredients
   if (Array.isArray(meal.ingredients) && meal.ingredients.length) {
     const wrap = el("div");
     wrap.append(el("div", { cls: "section-label", text: "Ingredients" }));
@@ -189,15 +190,14 @@ function renderMealCard(meal) {
     body.append(wrap);
   }
 
-  // One-tap feedback → the Taster learns and future ranking shifts.
+  // One-tap feedback -> the Taster. Guarded against in-flight turns so the UI
+  // never shows a "sent" state for a click that silently no-ops.
   const fb = el("div", { cls: "feedback-bar" });
   fb.append(el("span", { cls: "feedback-label", text: "How was it?" }));
-  const fbBtn = (emoji, label, query) => {
-    const b = el("button", { cls: "fb-btn", attrs: { type: "button" } });
-    b.append(el("span", { text: emoji, attrs: { "aria-hidden": "true" } }));
-    b.append(document.createTextNode(` ${label}`));
+  const fbBtn = (label, query) => {
+    const b = el("button", { cls: "fb-btn", text: label, attrs: { type: "button" } });
     b.addEventListener("click", () => {
-      if (inFlight) return; // don't show "sent" state for a turn that would silently no-op
+      if (inFlight) return;
       fb.querySelectorAll(".fb-btn").forEach((x) => (x.disabled = true));
       b.classList.add("fb-btn--chosen");
       submitQuery(query);
@@ -205,9 +205,9 @@ function renderMealCard(meal) {
     return b;
   };
   fb.append(
-    fbBtn("😍", "Loved it", `loved the ${meal.name}`),
-    fbBtn("🌶️", "Too spicy", `the ${meal.name} was too spicy`),
-    fbBtn("⏱️", "Took too long", `the ${meal.name} took too long`),
+    fbBtn("Loved it", `loved the ${meal.name}`),
+    fbBtn("Too spicy", `the ${meal.name} was too spicy`),
+    fbBtn("Took too long", `the ${meal.name} took too long`),
   );
   body.append(fb);
 
@@ -215,26 +215,30 @@ function renderMealCard(meal) {
   return card;
 }
 
+// ============================================================
+// Grocery card
+// ============================================================
+
 function renderGroceryCard(grocery) {
   const card = el("div", { cls: "grocery-card" });
 
   const head = el("div", { cls: "grocery-head" });
-  head.append(el("span", { text: "🛒", attrs: { "aria-hidden": "true" } }));
+  head.append(icon("cart", "icon"));
   head.append(el("h3", { text: "Shopping list" }));
 
-  // Copy the list as plain text — the small utility people actually use.
   const copyBtn = el("button", { cls: "copy-btn", attrs: { type: "button", "aria-label": "Copy shopping list" } });
-  copyBtn.textContent = "⧉ Copy";
+  copyBtn.append(icon("copy", "icon icon--sm"), el("span", { text: "Copy" }));
   copyBtn.addEventListener("click", async () => {
     const lines = (grocery.items || []).map((i) => `${Math.round(i.grams)}g ${i.item} (${money(i.est_cost_usd)})`);
     lines.push(`Total: ${money(grocery.total_cost_usd)}`);
+    const label = copyBtn.querySelector("span");
     try {
       await navigator.clipboard.writeText(lines.join("\n"));
-      copyBtn.textContent = "✓ Copied";
+      label.textContent = "Copied";
     } catch {
-      copyBtn.textContent = "✗ Can't copy";
+      label.textContent = "Copy failed";
     }
-    setTimeout(() => (copyBtn.textContent = "⧉ Copy"), 1600);
+    setTimeout(() => (label.textContent = "Copy"), 1600);
   });
   head.append(copyBtn);
   card.append(head);
@@ -253,7 +257,6 @@ function renderGroceryCard(grocery) {
     body.append(list);
   }
 
-  // Total + per-serving
   const total = el("div", { cls: "grocery-total" });
   total.append(el("span", { text: "Total" }));
   const right = el("span");
@@ -264,7 +267,6 @@ function renderGroceryCard(grocery) {
   total.append(right);
   body.append(total);
 
-  // Substitutions
   if (Array.isArray(grocery.substitutions) && grocery.substitutions.length) {
     const subs = el("div", { cls: "subs" });
     subs.append(el("div", { cls: "section-label", text: "Smart swaps" }));
@@ -283,17 +285,16 @@ function renderGroceryCard(grocery) {
   return card;
 }
 
-/**
- * The collapsible "how this was decided" panel. A subtle button expands a
- * panel listing agents_used / used_llm plus each handoff step with its ms.
- */
-/** Per-agent identity for the pipeline strip. */
-const AGENT_META = {
-  Concierge:  { emoji: "🎩", cls: "agent--concierge" },
-  Chef:       { emoji: "👨‍🍳", cls: "agent--chef" },
-  Dietitian:  { emoji: "🛡️", cls: "agent--dietitian" },
-  Shopper:    { emoji: "🛒", cls: "agent--shopper" },
-  Taster:     { emoji: "👅", cls: "agent--taster" },
+// ============================================================
+// Trace: pipeline strip + collapsible detail
+// ============================================================
+
+const AGENT_CLS = {
+  Concierge: "agent--concierge",
+  Chef: "agent--chef",
+  Dietitian: "agent--dietitian",
+  Shopper: "agent--shopper",
+  Taster: "agent--taster",
 };
 
 let traceSeq = 0;
@@ -301,24 +302,18 @@ function renderTrace(data) {
   const id = `trace-${++traceSeq}`;
   const wrap = el("div", { cls: "trace" });
 
-  // Always-visible pipeline strip: which agents touched this answer, in order.
+  // Always-visible pipeline: which agents touched this answer, in order.
   const strip = el("div", { cls: "pipeline", attrs: { "aria-label": "Agents involved" } });
   const seen = [];
-  for (const step of data.trace) {
-    if (!seen.includes(step.agent)) seen.push(step.agent);
-  }
+  for (const step of data.trace) if (!seen.includes(step.agent)) seen.push(step.agent);
   seen.forEach((name, i) => {
     if (i > 0) strip.append(el("span", { cls: "pipe-arrow", text: "→", attrs: { "aria-hidden": "true" } }));
-    const meta = AGENT_META[name] || { emoji: "⚙️", cls: "" };
-    const chipEl = el("span", { cls: `agent-chip ${meta.cls}` });
-    chipEl.append(el("span", { text: meta.emoji, attrs: { "aria-hidden": "true" } }));
-    chipEl.append(document.createTextNode(` ${name}`));
-    strip.append(chipEl);
+    strip.append(el("span", { cls: `agent-chip ${AGENT_CLS[name] || ""}`, text: name }));
   });
   strip.append(el("span", {
     cls: `pipe-llm ${data.used_llm ? "pipe-llm--on" : ""}`,
-    text: data.used_llm ? "LLM" : "no LLM",
-    attrs: { title: data.used_llm ? "This turn used a language model" : "Fully deterministic turn — no model call" },
+    text: data.used_llm ? "AI" : "deterministic",
+    attrs: { title: data.used_llm ? "A language model helped create this answer" : "Fully deterministic turn — no model call" },
   }));
   wrap.append(strip);
 
@@ -326,27 +321,25 @@ function renderTrace(data) {
     cls: "trace-toggle",
     attrs: { type: "button", "aria-expanded": "false", "aria-controls": id },
   });
-  toggle.append(el("span", { cls: "chevron", text: "▸", attrs: { "aria-hidden": "true" } }));
-  toggle.append(document.createTextNode("How this was decided "));
+  toggle.append(icon("chevron", "icon icon--xs chevron"));
+  toggle.append(el("span", { text: "How this was decided" }));
   toggle.append(el("span", { cls: "trace-badge", text: `${data.agents_used ?? data.trace.length} agents` }));
 
   const panel = el("div", { cls: "trace-panel", attrs: { id, hidden: "" } });
 
-  // Meta pills
   const meta = el("div", { cls: "trace-meta" });
   if (data.intent) meta.append(el("span", { cls: "pill", text: `intent: ${data.intent}` }));
   meta.append(el("span", { cls: "pill", text: `${data.agents_used ?? data.trace.length} agents used` }));
   meta.append(el("span", {
     cls: `pill ${data.used_llm ? "llm-on" : ""}`,
-    text: data.used_llm ? "LLM assisted" : "deterministic (no LLM)",
+    text: data.used_llm ? "AI assisted" : "no model call",
   }));
   panel.append(meta);
 
-  // Steps
   const steps = el("ol", { cls: "trace-steps" });
   for (const step of data.trace) {
     const li = el("li", { cls: "trace-step" });
-    li.append(el("span", { cls: "trace-agent", text: step.agent }));
+    li.append(el("span", { cls: `trace-agent ${AGENT_CLS[step.agent] || ""}`, text: step.agent }));
     const detail = el("span", { cls: "trace-detail" });
     detail.append(el("span", { cls: "action", text: step.action }));
     if (step.detail) detail.append(document.createTextNode(` — ${step.detail}`));
@@ -368,19 +361,23 @@ function renderTrace(data) {
   return wrap;
 }
 
-/** Friendly, actionable error card (backend down vs. other errors). */
+// ============================================================
+// Errors
+// ============================================================
+
 function renderError(err) {
   const msg = el("div", { cls: "msg msg--assistant" });
-  msg.append(el("div", { cls: "avatar", text: "🍳", attrs: { "aria-hidden": "true" } }));
+  const avatar = el("div", { cls: "avatar", attrs: { "aria-hidden": "true" } });
+  avatar.append(icon("pot", "icon icon--sm"));
+  msg.append(avatar);
 
   const note = el("div", { cls: "error-note" });
   if (err instanceof ApiError && err.unreachable) {
     note.innerHTML = `
       <p><strong>I can't reach the kitchen right now.</strong></p>
       <p>The backend doesn't seem to be running at <code>${escapeHtml(getApiUrl())}</code>.</p>
-      <p>Start it from the repo root with
-        <code>uvicorn kitchenaid.api:app</code>, then try again.
-        If it's running elsewhere, update the API URL in your Profile → Connection settings.</p>`;
+      <p>Start it from the repo root with <code>uvicorn kitchenaid.api:app</code>, then try
+        again. If it's running elsewhere, update the API URL in Profile → Connection settings.</p>`;
   } else {
     const text = err instanceof ApiError ? err.message : "Something went wrong on this turn.";
     note.innerHTML = `<p><strong>Sorry — ${escapeHtml(text)}</strong></p>
@@ -391,40 +388,33 @@ function renderError(err) {
   scrollToEnd();
 }
 
-/** Minimal HTML escaping for the few spots we build markup by string. */
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-}
-
 // ============================================================
-// Welcome state
+// Welcome + safety strip
 // ============================================================
 
 function renderWelcome() {
   const name = loadProfile().name;
-  const greeting = name ? `Welcome back, ${escapeHtml(name)}!` : "Welcome to kitchenaid";
+  const greeting = name ? `Welcome back, ${escapeHtml(name)}` : "Welcome to kitchenaid";
   const welcome = el("div", { cls: "welcome", attrs: { id: "welcome" } });
   welcome.innerHTML = `
-    <span class="wave" aria-hidden="true">🍳</span>
     <h2>${greeting}</h2>
     <p>Tell me what you're in the mood for and a small team of kitchen agents — a chef,
        a safety-checking dietitian, a shopper — will put dinner together.</p>
     <div class="welcome-cards" role="group" aria-label="Example requests">
       <button class="example-card" type="button" data-query="quick dinner, I have chicken and spinach, 20 minutes">
-        <span class="ex-emoji" aria-hidden="true">⏱️</span>
+        <svg viewBox="0 0 24 24" class="icon ex-icon" aria-hidden="true"><use href="#i-clock"/></svg>
         <span class="ex-title">Beat the clock</span>
-        <span class="ex-sub">“Quick dinner — chicken, spinach, 20 min”</span>
+        <span class="ex-sub">Quick dinner — chicken, spinach, 20 min</span>
       </button>
       <button class="example-card" type="button" data-query="what do I need to buy for dinner with rice?">
-        <span class="ex-emoji" aria-hidden="true">🛒</span>
+        <svg viewBox="0 0 24 24" class="icon ex-icon" aria-hidden="true"><use href="#i-cart"/></svg>
         <span class="ex-title">Build my list</span>
-        <span class="ex-sub">“What do I need to buy for dinner?”</span>
+        <span class="ex-sub">What do I need to buy for dinner?</span>
       </button>
       <button class="example-card" type="button" data-query="plan my week">
-        <span class="ex-emoji" aria-hidden="true">📅</span>
+        <svg viewBox="0 0 24 24" class="icon ex-icon" aria-hidden="true"><use href="#i-calendar"/></svg>
         <span class="ex-title">Plan the week</span>
-        <span class="ex-sub">“Plan my week”</span>
+        <span class="ex-sub">Five dinners, no repeats</span>
       </button>
     </div>
     <p class="welcome-note">Allergies in your profile are <strong>hard rules</strong> — a
@@ -435,35 +425,145 @@ function renderWelcome() {
   conversation.append(welcome);
 }
 
-/** Always-visible pills for the hard rules the gate is enforcing right now. */
-function renderSafetyStrip() {
-  const strip = $("#safety-strip");
-  const p = loadProfile();
-  const pills = [];
-  for (const a of p.allergies || []) {
-    pills.push(`<button class="safety-pill safety-pill--allergy" type="button" title="Hard rule — the Dietitian rejects any dish containing this">🚫 ${escapeHtml(ALLERGEN_LABELS[a] || a)}</button>`);
-  }
-  if (p.diet && p.diet !== "none") {
-    pills.push(`<button class="safety-pill safety-pill--diet" type="button" title="Dietary rule — enforced on every dish">🌿 ${escapeHtml(p.diet)}</button>`);
-  }
-  if (p.budget_per_meal_usd != null && p.budget_per_meal_usd !== "") {
-    pills.push(`<button class="safety-pill" type="button" title="Soft goal — flagged when over">💵 $${Number(p.budget_per_meal_usd).toFixed(2)}/meal</button>`);
-  }
-  strip.innerHTML = pills.join("");
-  strip.hidden = pills.length === 0;
-  strip.querySelectorAll(".safety-pill").forEach((b) => b.addEventListener("click", openProfile));
-}
-
 function clearWelcome() {
   document.querySelector("#welcome")?.remove();
 }
+
+function renderSafetyStrip() {
+  const strip = $("#safety-strip");
+  const p = loadProfile();
+  strip.textContent = "";
+  const pill = (cls, iconName, label, title) => {
+    const b = el("button", { cls: `safety-pill ${cls}`, attrs: { type: "button", title } });
+    b.append(icon(iconName, "icon icon--xs"), el("span", { text: label }));
+    b.addEventListener("click", openProfile);
+    return b;
+  };
+  for (const a of p.allergies || []) {
+    strip.append(pill("safety-pill--allergy", "ban", ALLERGEN_LABELS[a] || a,
+      "Hard rule — the Dietitian rejects any dish containing this"));
+  }
+  if (p.diet && p.diet !== "none") {
+    strip.append(pill("safety-pill--diet", "leaf", p.diet, "Dietary rule — enforced on every dish"));
+  }
+  if (p.budget_per_meal_usd != null && p.budget_per_meal_usd !== "") {
+    strip.append(pill("", "cart", `$${Number(p.budget_per_meal_usd).toFixed(2)}/meal`,
+      "Soft goal — flagged when over"));
+  }
+  strip.hidden = strip.childElementCount === 0;
+}
+
+// ============================================================
+// Agents panel
+// ============================================================
+
+async function loadAgentTeam() {
+  if (agentTeam) return agentTeam;
+  const data = await fetchAgents(getApiUrl());
+  agentTeam = Array.isArray(data.agents) ? data.agents : [];
+  return agentTeam;
+}
+
+function renderAgentsPanel(team) {
+  const opts = loadAgentOptions();
+  agentsBody.textContent = "";
+
+  for (const a of team) {
+    const row = el("div", { cls: `agent-row ${a.id === "dietitian" ? "agent-row--safety" : ""}` });
+
+    const head = el("div", { cls: "agent-row-head" });
+    const title = el("div", { cls: "agent-row-title" });
+    const nameEl = el("span", { cls: `agent-name ${AGENT_CLS[a.name] || ""}`, text: a.name });
+    title.append(nameEl, el("span", { cls: "agent-role", text: a.role }));
+    head.append(title);
+
+    if (a.toggleable && a.toggle_key) {
+      const sw = el("button", {
+        cls: "switch",
+        attrs: {
+          type: "button", role: "switch", "aria-checked": String(Boolean(opts[a.toggle_key])),
+          "aria-label": a.toggle_label || `Toggle ${a.name}`,
+        },
+      });
+      sw.append(el("span", { cls: "switch-knob", attrs: { "aria-hidden": "true" } }));
+      sw.addEventListener("click", () => {
+        const next = sw.getAttribute("aria-checked") !== "true";
+        sw.setAttribute("aria-checked", String(next));
+        setAgentOption(a.toggle_key, next);
+        syncCreativeIndicator();
+      });
+      head.append(sw);
+    } else {
+      const lock = el("span", { cls: "agent-lock", attrs: { title: a.always_on_reason || "Always on" } });
+      lock.append(icon("lock", "icon icon--xs"), el("span", { text: "always on" }));
+      head.append(lock);
+    }
+    row.append(head);
+
+    if (a.toggleable && a.toggle_label) {
+      row.append(el("p", { cls: "agent-toggle-label", text: a.toggle_label }));
+    }
+    if (!a.toggleable && a.always_on_reason) {
+      row.append(el("p", { cls: "agent-reason", text: a.always_on_reason }));
+    }
+
+    // Expandable detail — keyboard-accessible disclosure.
+    const detailId = `agent-detail-${a.id}`;
+    const more = el("button", {
+      cls: "agent-more",
+      attrs: { type: "button", "aria-expanded": "false", "aria-controls": detailId },
+    });
+    more.append(icon("chevron", "icon icon--xs chevron"), el("span", { text: "What it does" }));
+    const detail = el("p", { cls: "agent-detail", text: a.detail || "", attrs: { id: detailId, hidden: "" } });
+    more.addEventListener("click", () => {
+      const open = more.getAttribute("aria-expanded") === "true";
+      more.setAttribute("aria-expanded", String(!open));
+      detail.hidden = open;
+    });
+    row.append(more, detail);
+
+    if (a.id === "chef") {
+      row.append(el("p", { cls: "agent-note",
+        text: "Creative mode uses a language model to invent dishes from your exact words. Every result still passes the safety gate." }));
+    }
+
+    agentsBody.append(row);
+  }
+}
+
+async function openAgents() {
+  try {
+    const team = await loadAgentTeam();
+    renderAgentsPanel(team);
+  } catch {
+    agentsBody.textContent = "";
+    agentsBody.append(el("p", { cls: "agent-reason",
+      text: `Can't load the team — is the backend running at ${getApiUrl()}?` }));
+  }
+  if (typeof agentsDialog.showModal === "function") agentsDialog.showModal();
+  else agentsDialog.setAttribute("open", "");
+}
+
+function closeAgents() {
+  if (typeof agentsDialog.close === "function") agentsDialog.close();
+  else agentsDialog.removeAttribute("open");
+}
+
+/** The composer-area banner shown while Creative mode is on. */
+function syncCreativeIndicator() {
+  creativeIndicator.hidden = !loadAgentOptions().creative_chef;
+}
+
+agentsBtn.addEventListener("click", openAgents);
+$("#agents-close").addEventListener("click", closeAgents);
+creativeIndicator.addEventListener("click", openAgents);
 
 // ============================================================
 // Sending a turn
 // ============================================================
 
 async function submitQuery(rawQuery) {
-  const query = rawQuery.trim();
+  const query = (rawQuery ?? "").trim();
   if (!query || inFlight) return;
 
   clearWelcome();
@@ -473,9 +573,10 @@ async function submitQuery(rawQuery) {
 
   const typing = renderTyping();
   const profile = toWireProfile(loadProfile(), userId);
+  const options = loadAgentOptions();
 
   try {
-    const data = await sendChat(getApiUrl(), { user_id: userId, query, profile });
+    const data = await sendChat(getApiUrl(), { user_id: userId, query, profile, options });
     typing.remove();
     renderAssistantResponse(data);
     // A successful turn proves the backend is up — recover the badge if it was down.
@@ -483,7 +584,6 @@ async function submitQuery(rawQuery) {
   } catch (err) {
     typing.remove();
     renderError(err);
-    // A failed turn is a good moment to re-check the health badge.
     refreshHealth();
   } finally {
     setBusy(false);
@@ -502,7 +602,7 @@ function setBusy(busy) {
 // ============================================================
 
 async function refreshHealth() {
-  setHealth("unknown", "Checking…");
+  setHealth("unknown", "Checking");
   try {
     const data = await checkHealth(getApiUrl());
     const n = Array.isArray(data.agents) ? data.agents.length : 0;
@@ -527,9 +627,7 @@ function setHealth(state, label) {
 
 function applyTheme(theme) {
   document.documentElement.setAttribute("data-theme", theme);
-  const isDark = theme === "dark";
-  themeBtn.setAttribute("aria-pressed", String(isDark));
-  themeBtn.querySelector(".theme-icon").textContent = isDark ? "☀️" : "🌙";
+  themeBtn.setAttribute("aria-pressed", String(theme === "dark"));
 }
 
 themeBtn.addEventListener("click", () => {
@@ -542,10 +640,9 @@ themeBtn.addEventListener("click", () => {
 // Profile dialog
 // ============================================================
 
-/** Build the 9 allergen toggle chips into the dialog once. */
 function buildAllergenChips() {
   const host = $("#pf-allergies");
-  host.innerHTML = "";
+  host.textContent = "";
   for (const a of ALLERGENS) {
     const label = el("label", { cls: "allergen" });
     const input = el("input", { attrs: { type: "checkbox", name: "allergy", value: a } });
@@ -554,7 +651,6 @@ function buildAllergenChips() {
   }
 }
 
-/** Copy the stored profile into the dialog form fields. */
 function fillProfileForm() {
   const p = loadProfile();
   profileForm.name.value = p.name;
@@ -569,24 +665,20 @@ function fillProfileForm() {
   }
 }
 
-/** Read the dialog form into a stored-profile shape and persist it. */
 function readAndSaveProfile() {
   const allergies = [...profileForm.querySelectorAll('input[name="allergy"]:checked')].map((b) => b.value);
-  const dislikes = profileForm.dislikes.value
-    .split(",").map((s) => s.trim()).filter(Boolean);
+  const dislikes = profileForm.dislikes.value.split(",").map((s) => s.trim()).filter(Boolean);
   const budgetRaw = profileForm.budget.value.trim();
 
-  const profile = {
+  saveProfile({
     name: profileForm.name.value.trim(),
     allergies,
     diet: profileForm.diet.value || "none",
     budget_per_meal_usd: budgetRaw === "" ? null : Number(budgetRaw),
     skill: profileForm.skill.value || "",
     dislikes,
-  };
-  saveProfile(profile);
+  });
 
-  // Connection settings live alongside the profile in the dialog.
   const apiUrl = normalizeBaseUrl($("#pf-api").value) || DEFAULT_API_URL;
   setApiUrl(apiUrl);
 }
@@ -594,7 +686,7 @@ function readAndSaveProfile() {
 function openProfile() {
   fillProfileForm();
   if (typeof dialog.showModal === "function") dialog.showModal();
-  else dialog.setAttribute("open", ""); // very old fallback
+  else dialog.setAttribute("open", "");
   profileForm.name.focus();
 }
 
@@ -607,20 +699,16 @@ profileBtn.addEventListener("click", openProfile);
 $("#profile-cancel").addEventListener("click", closeProfile);
 $("#profile-cancel-2").addEventListener("click", closeProfile);
 
-// Submit = save. The form uses method="dialog"; we intercept to persist first.
 profileForm.addEventListener("submit", (e) => {
-  // Only the Save button should persist; Cancel buttons are type="button".
   if (e.submitter && e.submitter.id !== "profile-save") return;
   readAndSaveProfile();
   applyPostProfileState();
-  // let the dialog close naturally via method="dialog"
 });
 
-/** After a profile save, refresh anything that depends on it. */
 function applyPostProfileState() {
-  refreshHealth(); // API URL may have changed
-  renderSafetyStrip(); // hard rules may have changed
-  // If the conversation is still just the welcome card, refresh its greeting.
+  refreshHealth();
+  renderSafetyStrip();
+  agentTeam = null;              // API URL may have changed — refetch team next open
   if (document.querySelector("#welcome")) {
     clearWelcome();
     renderWelcome();
@@ -628,7 +716,7 @@ function applyPostProfileState() {
 }
 
 // ============================================================
-// Wiring: composer + suggestion chips
+// Wiring + boot
 // ============================================================
 
 composer.addEventListener("submit", (e) => {
@@ -642,20 +730,15 @@ suggestions.addEventListener("click", (e) => {
   submitQuery(chip.dataset.query || chip.textContent);
 });
 
-// ============================================================
-// Boot
-// ============================================================
-
 function boot() {
   applyTheme(getTheme());
   buildAllergenChips();
   renderWelcome();
   renderSafetyStrip();
+  syncCreativeIndicator();
   refreshHealth();
 
-  // First-time users: nudge them to set up a profile.
   if (!hasProfile()) {
-    // Defer so the dialog opens after the first paint (feels smoother).
     setTimeout(openProfile, 350);
   }
 

@@ -36,23 +36,48 @@ export async function checkHealth(baseUrl, { signal } = {}) {
 }
 
 /**
+ * GET /agents — team metadata (name, role, detail, toggleability).
+ * The Agents panel renders entirely from this; nothing is hardcoded.
+ */
+export async function fetchAgents(baseUrl, { signal } = {}) {
+  const url = `${normalizeBaseUrl(baseUrl)}/agents`;
+  let res;
+  try {
+    res = await fetch(url, { method: "GET", signal });
+  } catch (err) {
+    throw new ApiError(err.message || "Network error", { unreachable: true });
+  }
+  if (!res.ok) throw new ApiError(`Couldn't load the team (${res.status})`, { status: res.status });
+  return res.json();
+}
+
+/**
  * POST /chat — send a natural-language turn.
  * @param {string} baseUrl
- * @param {{user_id:string, query:string, profile:object}} payload
+ * @param {{user_id:string, query:string, profile:object, options:object}} payload
  * @returns {Promise<object>} the chat response (see API contract)
  */
-export async function sendChat(baseUrl, payload, { signal } = {}) {
+export async function sendChat(baseUrl, payload, { signal, timeoutMs = 45000 } = {}) {
   const url = `${normalizeBaseUrl(baseUrl)}/chat`;
+  // Creative (LLM) turns can take several seconds — give them room, but never hang forever.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  if (signal) signal.addEventListener("abort", () => ctrl.abort(), { once: true });
   let res;
   try {
     res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-      signal,
+      signal: ctrl.signal,
     });
   } catch (err) {
-    throw new ApiError(err.message || "Network error", { unreachable: true });
+    const timedOut = err?.name === "AbortError";
+    throw new ApiError(timedOut ? "That took too long — try again or turn Creative mode off."
+                                : (err.message || "Network error"),
+                       { unreachable: !timedOut });
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!res.ok) {

@@ -47,7 +47,7 @@ def propose(profile: Profile, moment: Moment, corpus: list[Recipe] | None = None
 # --- generative path: invent free-text recipes (the gate's real adversary) -----------
 
 def generate_recipes(profile: Profile, moment: Moment, n: int = 8,
-                     model: str | None = None) -> list[Recipe] | None:
+                     model: str | None = None, hint: str | None = None) -> list[Recipe] | None:
     """Ask Claude to INVENT n recipes as structured data with free-text ingredient strings.
 
     This is the path that produces ingredient strings the resolver didn't anticipate — the
@@ -64,8 +64,11 @@ def generate_recipes(profile: Profile, moment: Moment, n: int = 8,
 
     diet_line = f" The user's diet is {profile.diet}." if profile.diet != "none" else ""
     allergy_line = f" Avoid these allergens: {', '.join(profile.allergies)}." if profile.allergies else ""
+    # The user's own words shape generation — this is the "solution catering to my needs"
+    # path. The Dietitian still verifies every result; the hint only steers creativity.
+    hint_line = f" The user asked for: \"{hint.strip()}\". Honor that request closely." if hint and hint.strip() else ""
     prompt = (
-        f"Invent {n} realistic {moment.meal_type} recipes.{diet_line}{allergy_line} "
+        f"Invent {n} realistic {moment.meal_type} recipes.{diet_line}{allergy_line}{hint_line} "
         "Write ingredient names the way a home cook would (natural language, brands, "
         "modifiers like 'vegan', 'low-sodium', 'fresh' are fine). "
         "Reply with ONLY a JSON array; each item: "

@@ -8,6 +8,7 @@ const KEYS = {
   userId: "kitchenaid.user_id",
   apiUrl: "kitchenaid.api_url",
   theme: "kitchenaid.theme",
+  agentOptions: "kitchenaid.agent_options",
 };
 
 export const ALLERGENS = [
@@ -51,6 +52,44 @@ export function getTheme() {
 }
 export function setTheme(theme) {
   localStorage.setItem(KEYS.theme, theme);
+}
+
+// ---------------------------------------------------------------------------
+// Agent toggles — sent as `options` on every /chat turn.
+// Defaults mirror the backend's AgentOptions; server-provided defaults from
+// GET /agents win for keys the user has never touched (handled in app.js).
+// ---------------------------------------------------------------------------
+export const DEFAULT_AGENT_OPTIONS = {
+  creative_chef: false,
+  shopper: true,
+  taster: true,
+};
+
+/** Stored toggle state merged over defaults; always returns all three keys. */
+export function loadAgentOptions() {
+  let stored = {};
+  try {
+    stored = JSON.parse(localStorage.getItem(KEYS.agentOptions) || "{}");
+  } catch {
+    stored = {};
+  }
+  const opts = { ...DEFAULT_AGENT_OPTIONS };
+  for (const key of Object.keys(opts)) {
+    if (typeof stored[key] === "boolean") opts[key] = stored[key];
+  }
+  return opts;
+}
+
+export function saveAgentOptions(opts) {
+  localStorage.setItem(KEYS.agentOptions, JSON.stringify(opts));
+}
+
+/** Flip a single toggle and persist; returns the full updated options. */
+export function setAgentOption(key, value) {
+  const opts = loadAgentOptions();
+  opts[key] = Boolean(value);
+  saveAgentOptions(opts);
+  return opts;
 }
 
 /**
