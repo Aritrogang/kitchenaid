@@ -122,11 +122,21 @@ function renderAssistantResponse(data) {
   scrollToEnd();
 }
 
+/** Cuisine → emoji so meal cards get a quick visual anchor. */
+const CUISINE_EMOJI = {
+  american: "🍔", indian: "🍛", chinese: "🥡", thai: "🍜", mexican: "🌮",
+  mediterranean: "🫒", french: "🥐", italian: "🍝", japanese: "🍱", greek: "🥗",
+};
+
 function renderMealCard(meal) {
   const card = el("div", { cls: "meal-card" });
 
   const head = el("div", { cls: "meal-head" });
-  head.append(el("h3", { cls: "meal-title", text: meal.name || "Your meal" }));
+  const emoji = CUISINE_EMOJI[String(meal.cuisine || "").toLowerCase()] || "🍽️";
+  const titleRow = el("div", { cls: "meal-title-row" });
+  titleRow.append(el("span", { cls: "meal-emoji", text: emoji, attrs: { "aria-hidden": "true" } }));
+  titleRow.append(el("h3", { cls: "meal-title", text: meal.name || "Your meal" }));
+  head.append(titleRow);
   const meta = [meal.cuisine, meal.time_min ? `${meal.time_min} min` : null,
     meal.servings ? `serves ${meal.servings}` : null].filter(Boolean).join(" · ");
   if (meta) head.append(el("p", { cls: "meal-cuisine", text: meta }));
@@ -179,6 +189,28 @@ function renderMealCard(meal) {
     body.append(wrap);
   }
 
+  // One-tap feedback → the Taster learns and future ranking shifts.
+  const fb = el("div", { cls: "feedback-bar" });
+  fb.append(el("span", { cls: "feedback-label", text: "How was it?" }));
+  const fbBtn = (emoji, label, query) => {
+    const b = el("button", { cls: "fb-btn", attrs: { type: "button" } });
+    b.append(el("span", { text: emoji, attrs: { "aria-hidden": "true" } }));
+    b.append(document.createTextNode(` ${label}`));
+    b.addEventListener("click", () => {
+      if (inFlight) return; // don't show "sent" state for a turn that would silently no-op
+      fb.querySelectorAll(".fb-btn").forEach((x) => (x.disabled = true));
+      b.classList.add("fb-btn--chosen");
+      submitQuery(query);
+    });
+    return b;
+  };
+  fb.append(
+    fbBtn("😍", "Loved it", `loved the ${meal.name}`),
+    fbBtn("🌶️", "Too spicy", `the ${meal.name} was too spicy`),
+    fbBtn("⏱️", "Took too long", `the ${meal.name} took too long`),
+  );
+  body.append(fb);
+
   card.append(body);
   return card;
 }
@@ -189,6 +221,22 @@ function renderGroceryCard(grocery) {
   const head = el("div", { cls: "grocery-head" });
   head.append(el("span", { text: "🛒", attrs: { "aria-hidden": "true" } }));
   head.append(el("h3", { text: "Shopping list" }));
+
+  // Copy the list as plain text — the small utility people actually use.
+  const copyBtn = el("button", { cls: "copy-btn", attrs: { type: "button", "aria-label": "Copy shopping list" } });
+  copyBtn.textContent = "⧉ Copy";
+  copyBtn.addEventListener("click", async () => {
+    const lines = (grocery.items || []).map((i) => `${Math.round(i.grams)}g ${i.item} (${money(i.est_cost_usd)})`);
+    lines.push(`Total: ${money(grocery.total_cost_usd)}`);
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+      copyBtn.textContent = "✓ Copied";
+    } catch {
+      copyBtn.textContent = "✗ Can't copy";
+    }
+    setTimeout(() => (copyBtn.textContent = "⧉ Copy"), 1600);
+  });
+  head.append(copyBtn);
   card.append(head);
 
   const body = el("div", { cls: "grocery-body" });
@@ -239,10 +287,40 @@ function renderGroceryCard(grocery) {
  * The collapsible "how this was decided" panel. A subtle button expands a
  * panel listing agents_used / used_llm plus each handoff step with its ms.
  */
+/** Per-agent identity for the pipeline strip. */
+const AGENT_META = {
+  Concierge:  { emoji: "🎩", cls: "agent--concierge" },
+  Chef:       { emoji: "👨‍🍳", cls: "agent--chef" },
+  Dietitian:  { emoji: "🛡️", cls: "agent--dietitian" },
+  Shopper:    { emoji: "🛒", cls: "agent--shopper" },
+  Taster:     { emoji: "👅", cls: "agent--taster" },
+};
+
 let traceSeq = 0;
 function renderTrace(data) {
   const id = `trace-${++traceSeq}`;
   const wrap = el("div", { cls: "trace" });
+
+  // Always-visible pipeline strip: which agents touched this answer, in order.
+  const strip = el("div", { cls: "pipeline", attrs: { "aria-label": "Agents involved" } });
+  const seen = [];
+  for (const step of data.trace) {
+    if (!seen.includes(step.agent)) seen.push(step.agent);
+  }
+  seen.forEach((name, i) => {
+    if (i > 0) strip.append(el("span", { cls: "pipe-arrow", text: "→", attrs: { "aria-hidden": "true" } }));
+    const meta = AGENT_META[name] || { emoji: "⚙️", cls: "" };
+    const chipEl = el("span", { cls: `agent-chip ${meta.cls}` });
+    chipEl.append(el("span", { text: meta.emoji, attrs: { "aria-hidden": "true" } }));
+    chipEl.append(document.createTextNode(` ${name}`));
+    strip.append(chipEl);
+  });
+  strip.append(el("span", {
+    cls: `pipe-llm ${data.used_llm ? "pipe-llm--on" : ""}`,
+    text: data.used_llm ? "LLM" : "no LLM",
+    attrs: { title: data.used_llm ? "This turn used a language model" : "Fully deterministic turn — no model call" },
+  }));
+  wrap.append(strip);
 
   const toggle = el("button", {
     cls: "trace-toggle",
@@ -330,9 +408,50 @@ function renderWelcome() {
   welcome.innerHTML = `
     <span class="wave" aria-hidden="true">🍳</span>
     <h2>${greeting}</h2>
-    <p>Ask me what to cook, what to buy, or how to plan your week — I'll route your
-       request through a small team of kitchen agents. Try a suggestion below to start.</p>`;
+    <p>Tell me what you're in the mood for and a small team of kitchen agents — a chef,
+       a safety-checking dietitian, a shopper — will put dinner together.</p>
+    <div class="welcome-cards" role="group" aria-label="Example requests">
+      <button class="example-card" type="button" data-query="quick dinner, I have chicken and spinach, 20 minutes">
+        <span class="ex-emoji" aria-hidden="true">⏱️</span>
+        <span class="ex-title">Beat the clock</span>
+        <span class="ex-sub">“Quick dinner — chicken, spinach, 20 min”</span>
+      </button>
+      <button class="example-card" type="button" data-query="what do I need to buy for dinner with rice?">
+        <span class="ex-emoji" aria-hidden="true">🛒</span>
+        <span class="ex-title">Build my list</span>
+        <span class="ex-sub">“What do I need to buy for dinner?”</span>
+      </button>
+      <button class="example-card" type="button" data-query="plan my week">
+        <span class="ex-emoji" aria-hidden="true">📅</span>
+        <span class="ex-title">Plan the week</span>
+        <span class="ex-sub">“Plan my week”</span>
+      </button>
+    </div>
+    <p class="welcome-note">Allergies in your profile are <strong>hard rules</strong> — a
+       deterministic gate checks every dish, every time.</p>`;
+  welcome.querySelectorAll(".example-card").forEach((cardBtn) => {
+    cardBtn.addEventListener("click", () => submitQuery(cardBtn.dataset.query));
+  });
   conversation.append(welcome);
+}
+
+/** Always-visible pills for the hard rules the gate is enforcing right now. */
+function renderSafetyStrip() {
+  const strip = $("#safety-strip");
+  const p = loadProfile();
+  const pills = [];
+  for (const a of p.allergies || []) {
+    pills.push(`<button class="safety-pill safety-pill--allergy" type="button" title="Hard rule — the Dietitian rejects any dish containing this">🚫 ${escapeHtml(ALLERGEN_LABELS[a] || a)}</button>`);
+  }
+  if (p.diet && p.diet !== "none") {
+    pills.push(`<button class="safety-pill safety-pill--diet" type="button" title="Dietary rule — enforced on every dish">🌿 ${escapeHtml(p.diet)}</button>`);
+  }
+  if (p.budget_per_meal_usd != null && p.budget_per_meal_usd !== "") {
+    pills.push(`<button class="safety-pill" type="button" title="Soft goal — flagged when over">💵 $${Number(p.budget_per_meal_usd).toFixed(2)}/meal</button>`);
+  }
+  strip.innerHTML = pills.join("");
+  strip.hidden = pills.length === 0;
+  strip.querySelectorAll(".safety-pill").forEach((b) => b.addEventListener("click", openProfile));
 }
 
 function clearWelcome() {
@@ -359,6 +478,8 @@ async function submitQuery(rawQuery) {
     const data = await sendChat(getApiUrl(), { user_id: userId, query, profile });
     typing.remove();
     renderAssistantResponse(data);
+    // A successful turn proves the backend is up — recover the badge if it was down.
+    if (!healthBadge.classList.contains("health-badge--ok")) refreshHealth();
   } catch (err) {
     typing.remove();
     renderError(err);
@@ -498,6 +619,7 @@ profileForm.addEventListener("submit", (e) => {
 /** After a profile save, refresh anything that depends on it. */
 function applyPostProfileState() {
   refreshHealth(); // API URL may have changed
+  renderSafetyStrip(); // hard rules may have changed
   // If the conversation is still just the welcome card, refresh its greeting.
   if (document.querySelector("#welcome")) {
     clearWelcome();
@@ -528,6 +650,7 @@ function boot() {
   applyTheme(getTheme());
   buildAllergenChips();
   renderWelcome();
+  renderSafetyStrip();
   refreshHealth();
 
   // First-time users: nudge them to set up a profile.

@@ -28,9 +28,9 @@
   --c-danger:       #b3352b;
   --c-ok:           #4f8a4a;
 
-  /* Typography */
+  /* Typography — Fraunces gives headings a warm cookbook feel; graceful fallback */
   --font-body: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-display: "SF Pro Rounded", ui-rounded, "Segoe UI", system-ui, sans-serif;
+  --font-display: "Fraunces", "SF Pro Rounded", ui-rounded, Georgia, serif;
 
   --fs-xs: .75rem;   --fs-sm: .875rem;  --fs-base: 1rem;
   --fs-lg: 1.125rem; --fs-xl: 1.375rem; --fs-2xl: 1.75rem;
@@ -454,6 +454,108 @@ button { font-family: inherit; }
 .advanced .field { margin-top: var(--sp-3); }
 
 .dialog-actions { display: flex; justify-content: flex-end; gap: var(--sp-3); padding-top: var(--sp-2); }
+
+/* ---------- Safety strip (hard rules at a glance) ---------- */
+.safety-strip {
+  display: flex; flex-wrap: wrap; gap: var(--sp-2);
+  padding: 0 0 var(--sp-2);
+}
+.safety-pill {
+  display: inline-flex; align-items: center; gap: var(--sp-1);
+  font-size: var(--fs-xs); font-weight: 700; cursor: pointer;
+  padding: var(--sp-1) var(--sp-3); border-radius: var(--radius-pill);
+  border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-ink-soft);
+  transition: all var(--tr-fast);
+}
+.safety-pill:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.safety-pill--allergy {
+  color: var(--c-danger);
+  border-color: color-mix(in srgb, var(--c-danger) 35%, var(--c-border));
+  background: color-mix(in srgb, var(--c-danger) 7%, var(--c-surface));
+}
+.safety-pill--diet {
+  color: var(--c-accent);
+  border-color: color-mix(in srgb, var(--c-accent) 40%, var(--c-border));
+  background: var(--c-accent-100);
+}
+
+/* ---------- Message entrance ---------- */
+@keyframes rise-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.msg { animation: rise-in .32s cubic-bezier(.2,.7,.3,1) both; }
+
+/* ---------- Meal card extras ---------- */
+.meal-title-row { display: flex; align-items: center; gap: var(--sp-2); }
+.meal-emoji { font-size: 1.5rem; line-height: 1; filter: drop-shadow(0 2px 3px rgba(60,45,30,.18)); }
+.meal-card { transition: box-shadow var(--tr), transform var(--tr); }
+.meal-card:hover { box-shadow: var(--shadow-lg); transform: translateY(-1px); }
+
+/* One-tap feedback bar */
+.feedback-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2);
+  border-top: 1px dashed var(--c-border-soft); padding-top: var(--sp-3);
+}
+.feedback-label { font-size: var(--fs-xs); font-weight: 700; color: var(--c-ink-faint);
+  text-transform: uppercase; letter-spacing: .05em; margin-right: var(--sp-1); }
+.fb-btn {
+  border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-ink);
+  border-radius: var(--radius-pill); padding: var(--sp-1) var(--sp-3);
+  font-size: var(--fs-sm); font-weight: 600; cursor: pointer; transition: all var(--tr-fast);
+}
+.fb-btn:hover:not(:disabled) { border-color: var(--c-accent); color: var(--c-accent); transform: translateY(-1px); }
+.fb-btn:disabled { opacity: .45; cursor: default; }
+.fb-btn--chosen { border-color: var(--c-accent); background: var(--c-accent-100); color: var(--c-accent); opacity: 1 !important; }
+
+/* Copy button (grocery card) */
+.copy-btn {
+  margin-left: auto; border: 1px solid var(--c-border); background: var(--c-surface);
+  color: var(--c-ink-soft); border-radius: var(--radius-pill);
+  padding: var(--sp-1) var(--sp-3); font-size: var(--fs-xs); font-weight: 700;
+  cursor: pointer; transition: all var(--tr-fast); white-space: nowrap;
+}
+.copy-btn:hover { border-color: var(--c-accent); color: var(--c-accent); }
+
+/* ---------- Agent pipeline strip ---------- */
+.pipeline {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1);
+  margin-bottom: var(--sp-2); font-size: var(--fs-xs);
+}
+.agent-chip {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-weight: 700; padding: 2px var(--sp-2); border-radius: var(--radius-pill);
+  border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-ink-soft);
+}
+.agent--concierge { color: #7c5cbf; border-color: color-mix(in srgb, #7c5cbf 35%, var(--c-border)); background: color-mix(in srgb, #7c5cbf 8%, var(--c-surface)); }
+.agent--chef      { color: var(--c-primary); border-color: color-mix(in srgb, var(--c-primary) 35%, var(--c-border)); background: color-mix(in srgb, var(--c-primary) 8%, var(--c-surface)); }
+.agent--dietitian { color: var(--c-accent); border-color: color-mix(in srgb, var(--c-accent) 40%, var(--c-border)); background: color-mix(in srgb, var(--c-accent) 10%, var(--c-surface)); }
+.agent--shopper   { color: #b9781a; border-color: color-mix(in srgb, #b9781a 35%, var(--c-border)); background: color-mix(in srgb, #b9781a 8%, var(--c-surface)); }
+.agent--taster    { color: #b3527d; border-color: color-mix(in srgb, #b3527d 35%, var(--c-border)); background: color-mix(in srgb, #b3527d 8%, var(--c-surface)); }
+.pipe-arrow { color: var(--c-ink-faint); }
+.pipe-llm {
+  margin-left: var(--sp-1); font-weight: 700; letter-spacing: .03em;
+  padding: 2px var(--sp-2); border-radius: var(--radius-pill);
+  border: 1px dashed var(--c-border); color: var(--c-ink-faint);
+}
+.pipe-llm--on { color: var(--c-primary); border-color: var(--c-primary); border-style: solid; }
+
+/* ---------- Welcome example cards ---------- */
+.welcome-cards {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-3);
+  margin: var(--sp-5) auto 0; max-width: 620px;
+}
+@media (max-width: 560px) { .welcome-cards { grid-template-columns: 1fr; } }
+.example-card {
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-1);
+  padding: var(--sp-4) var(--sp-3); cursor: pointer; text-align: center;
+  background: var(--c-surface); border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
+  transition: all var(--tr-fast); color: var(--c-ink); font-family: inherit;
+}
+.example-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--c-primary); }
+.ex-emoji { font-size: 1.6rem; }
+.ex-title { font-weight: 700; font-family: var(--font-display); }
+.ex-sub { font-size: var(--fs-xs); color: var(--c-ink-faint); }
+.welcome-note { margin-top: var(--sp-5); font-size: var(--fs-sm); color: var(--c-ink-faint); }
+.welcome-note strong { color: var(--c-accent); }
 
 /* ---------- Motion preferences ---------- */
 @media (prefers-reduced-motion: reduce) {
