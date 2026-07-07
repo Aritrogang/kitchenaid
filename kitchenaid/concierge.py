@@ -169,11 +169,17 @@ class Concierge:
                     if regenerated:
                         self._log("Chef", "regenerate", f"{len(regenerated)} revised dishes (LLM)")
                         review = self.dietitian.review_batch(regenerated, profile, moment)
-                if review.chosen is not None:
+                if review.approved:
+                    # The Dietitian decided which inventions are SAFE; now let learned taste
+                    # decide which safe one to serve — so feedback shapes creative dishes too.
+                    chosen, verdict = self._pick_by_taste(review.approved, taste)
+                    if taste is not None and chosen is not review.chosen:
+                        self._log("Taster", "rank",
+                                  f"taste favored '{chosen.name}' over '{review.chosen.name}'")
                     rec = agent.Recommendation(
-                        query=query, moment=moment, chosen=review.chosen,
-                        chosen_gate=review.verdict, rejected=review.rejected,
-                        considered=review.considered,
+                        query=query, moment=moment, chosen=chosen,
+                        chosen_gate=verdict, rejected=review.rejected,
+                        considered=review.considered, taste=taste,
                     )
                     return rec, True
                 self._log("Chef", "generate", "no safe invention — falling back to corpus")
@@ -182,6 +188,15 @@ class Concierge:
         rec = agent.recommend(query, profile, dietitian=self.dietitian, taste=taste)
         self._log("Chef", "propose", f"{rec.considered} candidates")
         return rec, used_llm
+
+    @staticmethod
+    def _pick_by_taste(approved, taste):
+        """Order dishes that ALREADY cleared the gate by learned taste. Because the input is
+        the Dietitian's approved set, this can only ever reorder safe dishes — it can never
+        surface something unsafe. With no taste yet, keeps the Dietitian's first-approved."""
+        if taste is None:
+            return approved[0]
+        return max(approved, key=lambda rv: taste.score(rv[0]))
 
     def _meal(self, query, profile, taste, intent, opts) -> ConciergeResponse:
         rec, used_llm = self._recommend(query, profile, taste, opts)
@@ -219,8 +234,17 @@ class Concierge:
         tags = self._parse_feedback(query)
         self.taster.record(self.last_recipe, tags, taste)
         self._log("Taster", "learn", f"{self.last_recipe.name}: {', '.join(tags) or 'no tags'}")
-        return self._respond(intent, f"Got it — updated your taste profile from "
-                                     f"'{self.last_recipe.name}' ({', '.join(tags) or 'noted'}).", agents=1)
+        effects = []
+        for t in tags:
+            phrase = self._FEEDBACK_EFFECT.get(t)
+            if phrase and phrase not in effects:
+                effects.append(phrase)
+        if effects:
+            msg = (f"Got it — noted on '{self.last_recipe.name}'. "
+                   f"Next time I'll {' and '.join(effects)}.")
+        else:
+            msg = f"Got it — noted your feedback on '{self.last_recipe.name}'."
+        return self._respond(intent, msg, agents=1)
 
     def _plan_week(self, query, profile, taste, intent, days: int = 5) -> ConciergeResponse:
         candidates = chef.propose(profile, Moment(), taste=taste)
@@ -241,6 +265,16 @@ class Concierge:
         return self._respond(intent, self._say_plan(plan), agents=2)
 
     # --- helpers ---------------------------------------------------------------------
+
+    # What each feedback tag concretely changes in future ranking. Surfaced back to the user
+    # so the learning is legible — you see the lever your feedback just pulled, not a black box.
+    _FEEDBACK_EFFECT = {
+        "too spicy": "rank spicy dishes lower",
+        "too long": "favor quicker recipes",
+        "too much": "plan smaller portions",
+        "loved": "lean toward dishes like that",
+        "disliked": "steer away from that kind of dish",
+    }
 
     def _parse_feedback(self, query: str) -> list[str]:
         q = query.lower()

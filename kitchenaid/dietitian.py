@@ -26,6 +26,10 @@ class Review:
     verdict: GateResult | None
     rejected: list[tuple[Recipe, GateResult]] = field(default_factory=list)
     considered: int = 0
+    # Every candidate that cleared EVERY hard rule, in input order. `chosen` is approved[0];
+    # exposing the whole safe set lets a caller rank *within it* by preference (e.g. taste)
+    # without the gate ever knowing about anything but safety.
+    approved: list[tuple[Recipe, GateResult]] = field(default_factory=list)
 
 
 class Dietitian:
@@ -41,17 +45,16 @@ class Dietitian:
         return verdict
 
     def review_batch(self, recipes, profile: Profile, moment: Moment | None = None) -> Review:
-        """Verify candidates in order. The chosen dish is the first that clears EVERY hard
-        rule; rejected candidates are returned with their reasons for transparency."""
+        """Verify candidates in order. Every dish that clears EVERY hard rule is collected in
+        `approved` (input order); `chosen` is the first of them. Rejected candidates are
+        returned with their reasons for transparency. Selection among the safe set is the
+        caller's business — the gate only decides safe vs. unsafe."""
         recipes = list(recipes)
-        chosen: Recipe | None = None
-        verdict: GateResult | None = None
+        approved: list[tuple[Recipe, GateResult]] = []
         rejected: list[tuple[Recipe, GateResult]] = []
         for recipe in recipes:
             v = self.review(recipe, profile, moment)
-            if v.approved:
-                if chosen is None:
-                    chosen, verdict = recipe, v
-            else:
-                rejected.append((recipe, v))
-        return Review(chosen=chosen, verdict=verdict, rejected=rejected, considered=len(recipes))
+            (approved if v.approved else rejected).append((recipe, v))
+        chosen, verdict = approved[0] if approved else (None, None)
+        return Review(chosen=chosen, verdict=verdict, rejected=rejected,
+                      considered=len(recipes), approved=approved)

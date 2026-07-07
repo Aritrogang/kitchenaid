@@ -102,16 +102,22 @@ class Recommendation:
     chosen_gate: GateResult | None = None
     rejected: list[tuple[Recipe, GateResult]] = field(default_factory=list)
     considered: int = 0
+    taste: "object | None" = None   # TasteMemory, if this pick was learned-taste-aware
 
     @property
     def why(self) -> list[str]:
-        """Human-readable reasons the chosen meal fits."""
+        """Human-readable reasons the chosen meal fits. Leads with the learned-taste reason
+        when one applies, so feedback the user gave earlier is visible in this pick."""
         if not self.chosen or not self.chosen_gate:
             return []
         g, r, m = self.chosen_gate, self.chosen, self.moment
         used = sorted({i.item for i in r.ingredients} & set(m.on_hand))
         expiring_used = sorted({i.item for i in r.ingredients} & set(m.expiring))
         reasons = []
+        if self.taste is not None:
+            learned = self.taste.explain(r)
+            if learned:
+                reasons.append(learned)
         if expiring_used:
             reasons.append(f"uses up {', '.join(expiring_used)} before it goes bad")
         elif used:
@@ -137,4 +143,5 @@ def recommend(query: str, profile: Profile, moment: Moment | None = None,
         chosen_gate=review.verdict,
         rejected=review.rejected,
         considered=review.considered,
+        taste=taste,
     )
