@@ -269,20 +269,20 @@ class Concierge:
         if not rec.chosen:
             return "Nothing in the corpus clears your hard rules for this one."
         g = rec.chosen_gate
-        return (f"🍽 {rec.chosen.name} — {rec.chosen.time_min} min, "
+        return (f"{rec.chosen.name} — {rec.chosen.time_min} min, "
                 f"~${g.cost_per_serving_usd:.2f}/serving, {g.calories_per_serving:.0f} kcal.")
 
     def _say_shopping(self, rec, plan) -> str:
-        lines = [self._say_meal(rec), f"🛒 Grocery list (${plan.total_cost_usd:.2f}):"]
+        lines = [self._say_meal(rec), f"Grocery list (${plan.total_cost_usd:.2f}):"]
         lines += [f"   {gi.grams:.0f}g {gi.item} (${gi.est_cost_usd:.2f})" for gi in plan.items]
         for s in plan.substitutions:
-            lines.append(f"   ↔ swapped {s.original}→{s.replacement} ({s.reason})")
+            lines.append(f"   swapped {s.original} to {s.replacement} ({s.reason})")
         return "\n".join(lines)
 
     def _say_plan(self, plan) -> str:
         if not plan:
             return "Couldn't assemble a safe plan from the corpus."
-        return "🗓 Week:\n" + "\n".join(f"   {i+1}. {r.name} ({r.cuisine})" for i, r in enumerate(plan))
+        return "Week:\n" + "\n".join(f"   {i+1}. {r.name} ({r.cuisine})" for i, r in enumerate(plan))
 
 
 def _blocked_ingredients(rejected) -> set:

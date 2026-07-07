@@ -37,21 +37,21 @@ def _render(rec: agent.Recommendation, profile: Profile) -> str:
     out.append("")
 
     if rec.chosen and rec.chosen_gate:
-        out.append(f"🍽  {rec.chosen.name}  ({rec.chosen.cuisine})")
+        out.append(f"{rec.chosen.name}  ({rec.chosen.cuisine})")
         for r in rec.why:
-            out.append(f"    • {r}")
+            out.append(f"    - {r}")
         if rec.chosen_gate.flags:
-            out.append("    ⚠ heads up:")
+            out.append("    heads up:")
             for fl in rec.chosen_gate.flags:
-                out.append(f"        – {fl}")
+                out.append(f"        - {fl}")
     else:
-        out.append("😕  Nothing in the corpus passes your hard rules for this moment.")
+        out.append("Nothing in the corpus passes your hard rules for this moment.")
 
     if rec.rejected:
         out.append("")
         out.append(f"  Considered {rec.considered}, the Dietitian gate blocked:")
         for recipe, verdict in rec.rejected[:4]:
-            out.append(f"    ✗ {recipe.name}: {'; '.join(verdict.hard_violations)}")
+            out.append(f"    x {recipe.name}: {'; '.join(verdict.hard_violations)}")
     return "\n".join(out)
 
 
