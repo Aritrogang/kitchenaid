@@ -43,7 +43,7 @@ struct MessageRow: View {
                         .font(.body)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
-                        .background(KitchenTheme.card)
+                        .background(KitchenTheme.surface)
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 18, style: .continuous)

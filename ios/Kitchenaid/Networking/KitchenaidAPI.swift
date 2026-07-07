@@ -11,7 +11,7 @@ enum APIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidBaseURL(let raw):
-            return "The server address \"\(raw)\" isn't a valid URL. Fix it in Profile → Server."
+            return "The server address \"\(raw)\" isn't a valid URL. Fix it in the Profile tab, under Server."
         case .transport:
             return "Couldn't reach the kitchen. Is the backend running and is the server address correct?"
         case .http(let status, let body):
@@ -60,14 +60,22 @@ actor KitchenaidAPI {
         return try await send(request)
     }
 
-    /// POST /chat — the single conversational turn.
-    func chat(userID: String, query: String, profile: Profile) async throws -> ChatResponse {
+    /// GET /agents — the team roster with per-agent toggle metadata.
+    func agents() async throws -> AgentsResponse {
+        let request = URLRequest(url: endpoint("agents"))
+        return try await send(request)
+    }
+
+    /// POST /chat — the single conversational turn. `options` carries the agent
+    /// toggles (creative_chef / shopper / taster) the user set on the Agents screen.
+    func chat(userID: String, query: String, profile: Profile,
+              options: ChatOptions) async throws -> ChatResponse {
         var request = URLRequest(url: endpoint("chat"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let body = ChatRequest(userID: userID, query: query, profile: profile)
+        let body = ChatRequest(userID: userID, query: query, profile: profile, options: options)
         do {
             request.httpBody = try encoder.encode(body)
         } catch {

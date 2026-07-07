@@ -19,7 +19,7 @@ struct TraceView: View {
             }
         }
         .padding(12)
-        .background(KitchenTheme.card.opacity(0.6))
+        .background(KitchenTheme.surfaceMuted)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -58,7 +58,7 @@ struct TraceView: View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(Array(trace.enumerated()), id: \.offset) { index, event in
                 HStack(alignment: .top, spacing: 10) {
-                    stepMarker(index: index)
+                    stepMarker(index: index, agent: event.agent)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
                             Text(event.agent)
@@ -87,12 +87,14 @@ struct TraceView: View {
         }
     }
 
-    private func stepMarker(index: Int) -> some View {
+    // Marker tinted per agent (Dietitian green, Shopper slate, ...) so the handoff
+    // chain reads at a glance — same encoding as the web's pipeline strip.
+    private func stepMarker(index: Int, agent: String) -> some View {
         Text("\(index + 1)")
             .font(.caption2.weight(.bold).monospacedDigit())
             .foregroundStyle(.white)
             .frame(width: 20, height: 20)
-            .background(KitchenTheme.accent)
+            .background(KitchenTheme.agentColor(agent))
             .clipShape(Circle())
     }
 }

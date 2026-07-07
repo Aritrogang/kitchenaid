@@ -22,6 +22,15 @@ final class ChatViewModel: ObservableObject {
     }
     @Published var connection: Connection = .unknown
 
+    // The agent roster for the Agents tab, fetched from GET /agents.
+    enum TeamState: Equatable {
+        case idle
+        case loading
+        case loaded([AgentInfo])
+        case failed(String)
+    }
+    @Published var teamState: TeamState = .idle
+
     // Profile + server address, mirrored from the store and re-persisted on change.
     @Published var profile: Profile {
         didSet { ProfileStore.saveProfile(profile) }
@@ -31,6 +40,8 @@ final class ChatViewModel: ObservableObject {
             ProfileStore.saveBaseURL(baseURL)
             let value = baseURL
             Task { await api.updateBaseURL(value) }
+            // The roster may differ on another backend; refetch on next visit.
+            teamState = .idle
         }
     }
 
@@ -82,7 +93,8 @@ final class ChatViewModel: ObservableObject {
             let response = try await api.chat(
                 userID: profile.userID,
                 query: trimmed,
-                profile: profile
+                profile: profile,
+                options: ChatOptions.current()
             )
             messages.append(.assistant(response))
             // A successful round-trip means we're online.
@@ -97,6 +109,25 @@ final class ChatViewModel: ObservableObject {
     /// Clear the transcript (keeps profile and connection).
     func clearConversation() {
         messages.removeAll()
+    }
+
+    // MARK: - Agent roster
+
+    /// Fetch the team from GET /agents. Cached after the first success; pass
+    /// `force: true` (pull-to-refresh, retry button) to refetch.
+    func loadAgents(force: Bool = false) async {
+        if !force {
+            if case .loaded = teamState { return }
+            if case .loading = teamState { return }
+        }
+        teamState = .loading
+        do {
+            let response = try await api.agents()
+            teamState = .loaded(response.agents)
+        } catch {
+            let reason = (error as? APIError)?.errorDescription ?? error.localizedDescription
+            teamState = .failed(reason)
+        }
     }
 
     // Derive a best-effort agent list from a response's trace, for the banner.

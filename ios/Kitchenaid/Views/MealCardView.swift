@@ -63,7 +63,7 @@ struct MealCardView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Image(systemName: "checkmark.seal.fill")
                         .font(.caption)
-                        .foregroundStyle(KitchenTheme.herb)
+                        .foregroundStyle(KitchenTheme.safe)
                     Text(reason)
                         .font(.subheadline)
                         .fixedSize(horizontal: false, vertical: true)
@@ -101,7 +101,7 @@ struct MealCardView: View {
     private var flagsSection: some View {
         FlowRow(spacing: 8) {
             ForEach(Array(meal.flags.enumerated()), id: \.offset) { _, flag in
-                TagPill(text: flag, tint: KitchenTheme.amber)
+                TagPill(text: flag, tint: KitchenTheme.info)
             }
         }
         .padding(.top, 2)

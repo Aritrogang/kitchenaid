@@ -142,7 +142,7 @@ struct ProfileView: View {
                 agents.isEmpty ? "Online" : "Online · \(agents.joined(separator: ", "))",
                 systemImage: "checkmark.circle.fill"
             )
-            .foregroundStyle(KitchenTheme.herb)
+            .foregroundStyle(KitchenTheme.safe)
             .font(.footnote)
         case .offline(let reason):
             Label(reason, systemImage: "xmark.octagon.fill")

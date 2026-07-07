@@ -6,6 +6,10 @@ struct ChatView: View {
     @EnvironmentObject private var viewModel: ChatViewModel
     @FocusState private var inputFocused: Bool
 
+    // Mirrors the Agents-tab switch; shown as a banner so it's never a surprise
+    // that a turn is slower (or that a dish is invented rather than from the corpus).
+    @AppStorage(AgentOptionKeys.creativeChef) private var creativeMode = false
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -79,6 +83,9 @@ struct ChatView: View {
 
     private var inputArea: some View {
         VStack(spacing: 10) {
+            if creativeMode {
+                creativeIndicator
+            }
             quickSuggestions
             HStack(spacing: 10) {
                 TextField("Ask about dinner…", text: $viewModel.draft, axis: .vertical)
@@ -86,7 +93,7 @@ struct ChatView: View {
                     .textFieldStyle(.plain)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .background(KitchenTheme.card)
+                    .background(KitchenTheme.surfaceMuted)
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -135,6 +142,25 @@ struct ChatView: View {
         }
     }
 
+    private var creativeIndicator: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "sparkles")
+                .font(.caption2)
+            Text("Creative mode — the Chef invents from your words; every dish still passes the Dietitian.")
+                .font(.caption)
+                .lineLimit(2)
+                .minimumScaleFactor(0.9)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(KitchenTheme.accent)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(KitchenTheme.accent.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Creative mode is on. The Chef invents dishes from your words; every dish still passes the Dietitian safety check.")
+    }
+
     private var canSend: Bool {
         !viewModel.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !viewModel.isSending
@@ -164,7 +190,7 @@ private struct ConnectionBanner: View {
         case .unknown, .checking:
             banner(color: .secondary, text: "Connecting to the kitchen…", showSpinner: true)
         case .online(let agents):
-            banner(color: KitchenTheme.herb,
+            banner(color: KitchenTheme.safe,
                    text: agents.isEmpty ? "Online" : "Online · \(agents.count) agents ready")
         case .offline(let reason):
             banner(color: .orange, text: reason)
@@ -229,7 +255,7 @@ private struct TypingIndicator: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .background(KitchenTheme.card)
+        .background(KitchenTheme.surface)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .onAppear {
             withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) {

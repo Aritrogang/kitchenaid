@@ -72,7 +72,7 @@ struct GroceryListView: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Substitutions", systemImage: "arrow.triangle.2.circlepath")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(KitchenTheme.herb)
+                .foregroundStyle(KitchenTheme.safe)
             ForEach(grocery.substitutions) { sub in
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {

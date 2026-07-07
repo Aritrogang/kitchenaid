@@ -18,7 +18,7 @@ struct KitchenaidApp: App {
     }
 }
 
-/// Top-level container: a chat tab and a profile tab.
+/// Top-level container: chat, the agent team, and the profile editor.
 struct RootView: View {
     @EnvironmentObject private var viewModel: ChatViewModel
 
@@ -27,6 +27,11 @@ struct RootView: View {
             ChatView()
                 .tabItem {
                     Label("Kitchen", systemImage: "fork.knife")
+                }
+
+            AgentsView()
+                .tabItem {
+                    Label("Agents", systemImage: "point.3.connected.trianglepath.dotted")
                 }
 
             ProfileView()
