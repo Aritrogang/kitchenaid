@@ -141,4 +141,9 @@ def format_report(r: EvalReport) -> str:
 
 
 if __name__ == "__main__":
-    print(format_report(run_eval()))
+    import sys
+
+    report = run_eval()
+    print(format_report(report))
+    # Exit non-zero on any safety/coverage regression so CI can gate on it.
+    sys.exit(0 if report.passes else 1)

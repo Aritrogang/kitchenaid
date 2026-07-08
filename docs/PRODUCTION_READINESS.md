@@ -34,15 +34,17 @@ The gate is only as good as the ingredient data behind it. This is the highest-l
   so it stays **union-flagged** (over-tag, never under-tag) for now; revisit only if data says
   it's common.
 
-## 2. Agent architecture (the roadmap)
-- 🟡 **Phase 2 — split the Dietitian** into its own gated agent (input contract decided by the
-  live data: resolved *name*, not product).
-- 🟡 **Phase 3 — Shopper**: pantry model + diff, grocery list w/ quantities & cost, substitution
-  → re-verify loop through the Dietitian.
-- 🟡 **Phase 4 — Profile Keeper + Taster**: persisted profiles + taste embeddings + feedback
-  learning. Needs an embeddings provider (Voyage / OpenAI / local).
-- 🟢 **Phase 5 — Concierge + MCP + tracing**: intent routing, cost-governor fast path, MCP
-  server over the tools, observability.
+## 2. Agent architecture (the roadmap) — ✅ SHIPPED
+The six-agent team is built and tested; these were the Phase 2–5 splits, now done.
+- ✅ **Phase 2 — Dietitian** is its own gated agent (`dietitian.py`); the input contract is the
+  resolved *name* (decided by the live data). Chef proposes, Dietitian disposes.
+- ✅ **Phase 3 — Shopper** (`shopper.py` + `pantry.py`): pantry diff, costed grocery list,
+  substitution → re-verify loop back through the Dietitian.
+- ✅ **Phase 4 — Profile Keeper + Taster** (`profile_keeper.py`, `taster.py`, `taste.py`):
+  persisted profiles + a deterministic taste model + feedback learning. Embeddings remain the
+  documented swap behind the same `score()` seam.
+- ✅ **Phase 5 — Concierge + MCP + tracing** (`concierge.py`, `mcp_server.py`): intent routing,
+  cost-governor fast path, MCP server over the tools, per-handoff trace.
 
 ## 3. Infrastructure & platform
 - 🔴 **Persistence.** Profiles, pantry, taste memory, feedback, spend ledger are JSON/in-memory.
@@ -52,9 +54,11 @@ The gate is only as good as the ingredient data behind it. This is the highest-l
 - ✅ **HTTP API.** Done — [`api.py`](../kitchenaid/api.py): a thin FastAPI adapter over the
   Concierge (`POST /chat`, `GET /health`), per-user session, taste persisted via the Profile
   Keeper, trace returned. `uvicorn kitchenaid.api:app`. Remaining: a **web/mobile client**.
-- 🟡 **UI client.** A frontend (web or mobile) that calls `/chat`. The API contract is stable.
-- 🟡 **Deployment.** Containerize, host, CI/CD, and move secrets from `.env` to a real secret
-  manager.
+- ✅ **UI client.** Two frontends over the stable `/chat` contract: a zero-build web SPA (`web/`)
+  and a native SwiftUI iOS app (`ios/`), both with the agent-toggle panel and the locked
+  Dietitian. iOS still needs an Xcode build/device pass.
+- 🟡 **Deployment.** Containerize, host, and move secrets from `.env` to a real secret manager.
+  (CI is in place — see §7.)
 
 ## 4. Safety, compliance, liability
 - 🔴 **Allergen guarantee at scale.** Core is the fail-closed gate (done). Production adds: the
@@ -81,10 +85,13 @@ The gate is only as good as the ingredient data behind it. This is the highest-l
   `resolution_misses.jsonl` dataset is already the seed of this signal.
 
 ## 7. Eval & QA / CI
-- 🟡 **Eval harness (Phase 6).** Grow `test_gate_properties.py` (property fuzzing) + a frozen set
-  of real generated dishes into a regression corpus. Track **ingredient-DB coverage %** (what
-  fraction of real model output resolves) as a first-class metric.
-- 🟡 **CI.** Run tests + evals on every change; block merges on any gate/safety regression.
+- ✅ **Eval harness (Phase 6).** `eval_harness.py` replays 15 frozen real dishes × 7 profiles,
+  asserting 0 mis-resolutions + 0 unsafe approvals + a coverage floor (currently 97.6%);
+  property fuzzing lives in `test_gate_properties.py`. Coverage % is tracked as a first-class
+  metric. Now wired into CI.
+- ✅ **CI.** GitHub Actions (`.github/workflows/ci.yml`) runs the full suite + the safety eval
+  keyless on every push/PR across Python 3.10–3.12; the eval exits non-zero on any regression,
+  so it gates the build. Remaining: branch protection requiring the check before merge.
 
 ## 8. UX
 - 🟡 **Fail-closed UX.** Rejecting on unknown ingredients is safe but reads as "broken." Product
