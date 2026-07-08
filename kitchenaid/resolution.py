@@ -181,6 +181,17 @@ def _normalize(raw: str) -> str:
     return s
 
 
+def _carries_pictographs(raw: str) -> bool:
+    """True if the string contains symbol characters (emoji etc.). Normalization would strip
+    them, but a pictograph can CARRY the allergen ("🥜 butter" means peanut butter) — so
+    stripping it and resolving the remainder would understate the truth. Such strings must
+    fail closed instead. (Category So covers emoji/pictographs; Sk/Sm/Sc are other symbols —
+    all suspicious inside an ingredient name, so we refuse them all. Over-reject, never
+    under-reject.)"""
+    folded = unicodedata.normalize("NFKD", raw)
+    return any(unicodedata.category(c).startswith("S") for c in folded)
+
+
 def _strip_qualifiers(norm: str) -> str:
     """Remove leading/trailing cooking qualifiers without touching identity words. Longer
     qualifiers are tried first so a two-word one ("extra virgin") isn't pre-empted by a
@@ -197,14 +208,18 @@ def _strip_qualifiers(norm: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
-def _singularize(norm: str) -> str:
+def _singular_candidates(norm: str) -> list[str]:
+    """Candidate singular forms, best-guess first. Tried in order against the table, so
+    'sauces' finds 'sauce' (drop -s) even though it also ends in -es, and 'berries' finds
+    'berry' (-ies -> -y)."""
+    out = []
     if norm.endswith("ies") and len(norm) > 4:
-        return norm[:-3] + "y"
+        out.append(norm[:-3] + "y")
+    if norm.endswith("s") and len(norm) > 2 and not norm.endswith("ss"):
+        out.append(norm[:-1])          # sauces -> sauce, carrots -> carrot
     if norm.endswith("es") and len(norm) > 3:
-        return norm[:-2]
-    if norm.endswith("s") and len(norm) > 2:
-        return norm[:-1]
-    return norm
+        out.append(norm[:-2])          # tomatoes -> tomato
+    return [c for c in out if c != norm]
 
 
 def resolve(raw: str) -> Resolution:
@@ -218,6 +233,11 @@ def resolve(raw: str) -> Resolution:
       * descriptive path — colour / texture / variety / prep qualifiers are allergen-neutral,
         so they may be stripped freely to reach the base ingredient.
     """
+    # Pictographs can carry the allergen itself ("🥜 butter" = peanut butter). Normalization
+    # would silently strip them and resolve the REMAINDER, understating the truth — so any
+    # symbol-bearing string fails closed before either path runs.
+    if _carries_pictographs(raw):
+        return Resolution(raw, None, "unresolved")
     modifier, _base = detect_modifier(raw)
     if modifier:
         return _resolve_free_from(_normalize(raw), raw)
@@ -249,9 +269,8 @@ def _resolve_descriptive(norm: str, raw: str) -> Resolution:
             return Resolution(raw, stripped, "qualifier")
         if stripped in _SYNONYMS:
             return Resolution(raw, _SYNONYMS[stripped], "qualifier")
-    # 4. naive singularize, retry exact + synonym
-    sing = _singularize(stripped)
-    if sing != stripped:
+    # 4. singular candidates (best-guess order), retry exact + synonym on each
+    for sing in _singular_candidates(stripped):
         if sing in table:
             return Resolution(raw, sing, "singular")
         if sing in _SYNONYMS:

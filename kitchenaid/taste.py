@@ -35,6 +35,28 @@ class TasteMemory:
         s += self.time_pref * (recipe.time_min / 30.0)           # slow dishes suffer if time_pref < 0
         return round(s, 3)
 
+    def explain(self, recipe: Recipe) -> "str | None":
+        """One short, honest reason this dish fits what you've taught me — or None if nothing
+        learned applies. Guarded to mirror score(): every phrase only fires when the signal is
+        real AND this dish actually satisfies it, so the reason is never overstated.
+
+        This is what makes the learned change *visible*: the Chef doesn't just rank differently
+        after feedback, it can say why the pick shifted.
+        """
+        if recipe.name in self.loved:
+            return "you loved this one before"
+        reasons: list[str] = []
+        # "too spicy" pushed tolerance below zero — a mild dish is the payoff of that lesson.
+        if self.spice_tolerance < 0 and recipe.spice_level == 0:
+            reasons.append("milder — you found a past dish too spicy")
+        # "took too long" pushed time_pref below zero — reward a genuinely quick dish.
+        if self.time_pref < 0 and recipe.time_min <= 25:
+            reasons.append("quicker — you found a past dish too slow")
+        # a cuisine you've actively rewarded (loved/liked).
+        if recipe.cuisine and self.cuisine.get(recipe.cuisine, 0.0) > 0:
+            reasons.append(f"you've liked {recipe.cuisine} before")
+        return "; ".join(reasons[:2]) if reasons else None
+
     # --- persistence (the Profile Keeper's store) ------------------------------------
 
     def to_dict(self) -> dict:

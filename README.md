@@ -57,6 +57,25 @@ pip install anthropic        # only needed for the Claude path
 python3 -m kitchenaid "something cozy, I have lentils and carrots"
 ```
 
+## HTTP API (ship)
+
+A thin FastAPI adapter over the Concierge — any web/mobile client drives the whole agent
+team through one endpoint.
+
+```bash
+pip install fastapi uvicorn
+uvicorn kitchenaid.api:app --reload
+# then:
+curl -s localhost:8000/chat -H 'content-type: application/json' -d '{
+  "user_id": "me", "query": "what do I need to buy for dinner with rice?",
+  "profile": {"user_id":"me","name":"Me","allergies":["shellfish"],"diet":"none","budget_per_meal_usd":6}
+}'
+```
+
+`POST /chat` takes a natural-language turn; the Concierge routes it (dinner / shopping /
+feedback / plan-week), and the JSON response carries the meal, grocery list, learned-taste
+updates, and the agent handoff **trace**. `GET /health` lists the team.
+
 ## The safety guarantee
 
 An allergen must **never** pass the gate. That's a property we test, not hope for:

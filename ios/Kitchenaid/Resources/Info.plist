@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  App Transport Security.
+
+	  iOS blocks plain-http (non-TLS) connections by default. The kitchenaid backend
+	  runs over http://localhost:8000 during development, so we opt in to local
+	  networking. NSAllowsLocalNetworking permits cleartext to "localhost", ".local",
+	  and private LAN hosts WITHOUT disabling ATS for the public internet — which is
+	  the narrow, App-Store-friendly exception you want.
+
+	  If you point the app at a physical device using your Mac's LAN IP (e.g.
+	  192.168.x.x), NSAllowsLocalNetworking also covers that. For an arbitrary remote
+	  http host you would instead add an NSExceptionDomains entry (see README).
+	-->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+
+	<!-- Local network usage description (iOS 14+ prompts for LAN access). -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>kitchenaid connects to your kitchen assistant backend running on your local network.</string>
+
+	<key>UILaunchScreen</key>
+	<dict/>
+</dict>
+</plist>

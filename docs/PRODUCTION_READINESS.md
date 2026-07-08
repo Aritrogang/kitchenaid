@@ -49,8 +49,10 @@ The gate is only as good as the ingredient data behind it. This is the highest-l
   Needs a real datastore (Postgres or similar) with migrations.
 - 🔴 **Multi-user + auth.** Everything is single-user today. Need accounts, authentication, and
   per-user data isolation (profiles hold health data — see §4).
-- 🟡 **HTTP API + UI.** CLI only now. Thin FastAPI over the agent loop + a web/mobile client
-  (Phase 6). The functions are already the right shape for a thin adapter.
+- ✅ **HTTP API.** Done — [`api.py`](../kitchenaid/api.py): a thin FastAPI adapter over the
+  Concierge (`POST /chat`, `GET /health`), per-user session, taste persisted via the Profile
+  Keeper, trace returned. `uvicorn kitchenaid.api:app`. Remaining: a **web/mobile client**.
+- 🟡 **UI client.** A frontend (web or mobile) that calls `/chat`. The API contract is stable.
 - 🟡 **Deployment.** Containerize, host, CI/CD, and move secrets from `.env` to a real secret
   manager.
 
