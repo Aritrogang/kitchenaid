@@ -1,0 +1,34 @@
+# Local/production-shaped stack: the API over Postgres. Brings up the DB, waits for it to be
+# healthy, applies migrations, and serves. Try it with:  docker compose up --build
+name: kitchenaid
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: kitchenaid
+      POSTGRES_PASSWORD: kitchenaid
+      POSTGRES_DB: kitchenaid
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kitchenaid"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://kitchenaid:kitchenaid@db:5432/kitchenaid
+      # Optional — passed through from your shell / .env if set. The gate runs without it;
+      # only the Creative Chef's live generation needs a key.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "8000:8000"
+
+volumes:
+  pgdata:

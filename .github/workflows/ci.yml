@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
 
@@ -73,3 +73,20 @@ jobs:
         run: python -m kitchenaid.store migrate
       - name: Postgres-backed persistence tests
         run: python -m pytest tests/test_store_postgres.py -q
+
+  docker-build:
+    name: docker-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image
+        run: docker build -t kitchenaid-api .
+      - name: Smoke-test the image imports and serves
+        run: |
+          docker run --rm kitchenaid-api python -c "import kitchenaid.api; print('api import ok')"
+          docker run --rm -d --name kaid -p 8000:8000 kitchenaid-api
+          for i in $(seq 1 15); do
+            curl -fsS http://localhost:8000/health && break || sleep 2
+          done
+          curl -fsS http://localhost:8000/health
+          docker rm -f kaid

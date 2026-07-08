@@ -47,8 +47,10 @@ The six-agent team is built and tested; these were the Phase 2–5 splits, now d
   cost-governor fast path, MCP server over the tools, per-handoff trace.
 
 ## 3. Infrastructure & platform
-- 🔴 **Persistence.** Profiles, pantry, taste memory, feedback, spend ledger are JSON/in-memory.
-  Needs a real datastore (Postgres or similar) with migrations.
+- 🟡 **Persistence.** ✅ Taste memory now persists through a pluggable store — Postgres or JSON,
+  selected by `DATABASE_URL` — with forward-only migrations (`docs/PERSISTENCE.md`); CI verifies
+  the Postgres path against a real service. Remaining on the same seam: server-side profiles,
+  pantry, feedback, and the spend ledger; connection pooling.
 - 🔴 **Multi-user + auth.** Everything is single-user today. Need accounts, authentication, and
   per-user data isolation (profiles hold health data — see §4).
 - ✅ **HTTP API.** Done — [`api.py`](../kitchenaid/api.py): a thin FastAPI adapter over the
@@ -57,8 +59,9 @@ The six-agent team is built and tested; these were the Phase 2–5 splits, now d
 - ✅ **UI client.** Two frontends over the stable `/chat` contract: a zero-build web SPA (`web/`)
   and a native SwiftUI iOS app (`ios/`), both with the agent-toggle panel and the locked
   Dietitian. iOS still needs an Xcode build/device pass.
-- 🟡 **Deployment.** Containerize, host, and move secrets from `.env` to a real secret manager.
-  (CI is in place — see §7.)
+- 🟡 **Deployment.** ✅ Containerized — `Dockerfile` + `docker-compose.yml` (API + Postgres),
+  non-root, healthcheck, migrate-on-start; CI builds and smoke-tests the image (`docs/DEPLOY.md`).
+  Remaining: host it, TLS/reverse proxy, publish to a registry, secrets in a real manager.
 
 ## 4. Safety, compliance, liability
 - 🔴 **Allergen guarantee at scale.** Core is the fail-closed gate (done). Production adds: the
