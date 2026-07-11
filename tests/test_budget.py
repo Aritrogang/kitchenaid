@@ -94,6 +94,54 @@ def test_record_persists_and_accumulates():
     assert calls == 1 and total == 6.0
 
 
+# --- per-user caps (opt-in) ----------------------------------------------------------
+
+def test_per_user_usd_cap_blocks_that_user_only():
+    lim, _ = _limiter(max_calls_per_run=999, max_calls_per_day=999, max_usd_per_day=999,
+                      max_usd_per_user_per_day=0.01)
+    lim.record("claude-haiku-4-5-20251001", 1_000_000, 1_000_000, user="alice")   # $6 for alice
+    r = lim.reserve(estimated_usd=0.001, user="alice")
+    assert r.ok is False and "per-user daily budget" in r.reason and "alice" in r.reason
+    assert lim.reserve(estimated_usd=0.001, user="bob").ok is True                 # bob unaffected
+
+
+def test_per_user_call_cap_blocks():
+    lim, _ = _limiter(max_calls_per_run=999, max_calls_per_day=999, max_usd_per_day=999,
+                      max_calls_per_user_per_day=1)
+    lim.record("claude-haiku-4-5-20251001", 10, 10, user="alice")
+    r = lim.reserve(user="alice")
+    assert r.ok is False and "per-user daily call cap" in r.reason
+
+
+def test_no_user_context_skips_per_user_caps():
+    lim, _ = _limiter(max_calls_per_run=999, max_calls_per_day=999, max_usd_per_day=999,
+                      max_usd_per_user_per_day=0.0001)
+    assert lim.reserve(estimated_usd=1.0, user=None).ok is True    # CLI / unattributed call
+
+
+def test_per_user_caps_off_by_default():
+    lim, _ = _limiter(max_calls_per_run=999, max_calls_per_day=999, max_usd_per_day=999)
+    lim.record("claude-haiku-4-5-20251001", 1_000_000, 1_000_000, user="alice")
+    assert lim.reserve(estimated_usd=0.001, user="alice").ok is True   # only the global cap binds
+
+
+def test_global_cap_still_binds_across_users():
+    lim, _ = _limiter(max_calls_per_run=999, max_calls_per_day=999, max_usd_per_day=6.0,
+                      max_usd_per_user_per_day=999)
+    lim.record("claude-haiku-4-5-20251001", 1_000_000, 1_000_000, user="alice")   # $6 -> account full
+    r = lim.reserve(estimated_usd=0.5, user="bob")                                # bob under his cap
+    assert r.ok is False and "daily budget" in r.reason           # but the account is at its cap
+
+
+def test_day_totals_filters_by_user():
+    lim, _ = _limiter()
+    lim.record("claude-haiku-4-5-20251001", 1_000_000, 1_000_000, user="alice")   # $6
+    lim.record("claude-haiku-4-5-20251001", 1_000_000, 0, user="bob")             # $1
+    assert lim._day_totals() == (2, 7.0)          # global
+    assert lim._day_totals("alice") == (1, 6.0)   # alice only
+    assert lim._day_totals("bob") == (1, 1.0)     # bob only
+
+
 def _run_standalone():
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for fn in fns:

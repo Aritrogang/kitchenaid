@@ -76,9 +76,10 @@ The six-agent team is built and tested; these were the Phase 2–5 splits, now d
   keeps *safety* intact regardless, but guard generation cost/quality against injection.
 
 ## 5. Cost & abuse controls
-- 🔴 **Per-user budgets.** The spend guardrail is global/per-process today. Production needs
-  per-user quotas and per-user spend tracking tied to accounts (the guardrail primitive extends
-  cleanly to this).
+- 🟡 **Per-user budgets.** ✅ The spend guardrail now records spend per `user_id` and enforces
+  opt-in per-user daily caps (`KITCHENAID_MAX_{USD,CALLS}_PER_USER_PER_DAY`) alongside the global
+  cap — one user can't drain the account. Remaining: tie the caps to real accounts (auth) and
+  move the ledger to Postgres for multi-node (same store seam).
 - 🟡 **Caching.** Prompt caching + result caching to cut per-user cost at scale.
 - 🟢 **Model routing.** Route cheap turns to Haiku, escalate only when warranted (Concierge).
 

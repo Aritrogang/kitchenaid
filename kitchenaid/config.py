@@ -44,12 +44,22 @@ MODELS = {
     "reason":   os.environ.get("ANTHROPIC_REASON_MODEL", "claude-opus-4-8"),         # deep (future Concierge)
 }
 
+def _opt_num(name: str, cast):
+    """An optional numeric env override: None (the default) means the limit is OFF."""
+    v = os.environ.get(name)
+    return cast(v) if v not in (None, "") else None
+
+
 # Spend guardrail — conservative by default so a runaway loop can't destroy your credits.
 # You opt INTO spending more; the defaults protect you. See kitchenaid/budget.py.
+# The per-USER caps are opt-in (None = off): a global cap protects the account, a per-user cap
+# stops one user from consuming everyone's budget. Set them once you have multiple users.
 LIMITS = {
     "max_calls_per_run": int(os.environ.get("KITCHENAID_MAX_CALLS_PER_RUN", "25")),
     "max_calls_per_day": int(os.environ.get("KITCHENAID_MAX_CALLS_PER_DAY", "200")),
     "max_usd_per_day":   float(os.environ.get("KITCHENAID_MAX_USD_PER_DAY", "1.00")),
+    "max_calls_per_user_per_day": _opt_num("KITCHENAID_MAX_CALLS_PER_USER_PER_DAY", int),
+    "max_usd_per_user_per_day":   _opt_num("KITCHENAID_MAX_USD_PER_USER_PER_DAY", float),
     "spend_ledger":      os.environ.get("KITCHENAID_SPEND_LEDGER", "eval/spend_ledger.jsonl"),
 }
 

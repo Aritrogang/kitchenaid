@@ -83,7 +83,8 @@ def generate_recipes(profile: Profile, moment: Moment, n: int = 8,
     # call the API. Surfaced to stderr always (a silent budget block would look like a key
     # problem). See kitchenaid/budget.py.
     est_in = max(len(prompt) // 4, 200)
-    reservation = budget.LIMITER.reserve(budget.estimate_cost(used_model, est_in, max_tokens))
+    reservation = budget.LIMITER.reserve(budget.estimate_cost(used_model, est_in, max_tokens),
+                                         user=profile.user_id)
     if not reservation.ok:
         print(f"[budget] generation blocked — {reservation.reason}", file=sys.stderr)
         return None
@@ -95,7 +96,8 @@ def generate_recipes(profile: Profile, moment: Moment, n: int = 8,
             max_tokens=max_tokens,
             messages=[{"role": "user", "content": prompt}],
         )
-        budget.LIMITER.record(used_model, msg.usage.input_tokens, msg.usage.output_tokens)
+        budget.LIMITER.record(used_model, msg.usage.input_tokens, msg.usage.output_tokens,
+                              user=profile.user_id)
         text = "".join(b.text for b in msg.content if getattr(b, "type", None) == "text")
         start, end = text.find("["), text.rfind("]")
         raw = json.loads(text[start:end + 1])
@@ -214,7 +216,8 @@ def _propose_with_claude(profile: Profile, moment: Moment, corpus: list[Recipe])
     )
     # SPEND GATE before this paid rerank call — blocked falls back to the deterministic ranker.
     est_in = max(len(prompt) // 4, 200)
-    if not budget.LIMITER.reserve(budget.estimate_cost(MODEL, est_in, 400)).ok:
+    if not budget.LIMITER.reserve(budget.estimate_cost(MODEL, est_in, 400),
+                                  user=profile.user_id).ok:
         return None
     try:
         client = anthropic.Anthropic()
@@ -223,7 +226,8 @@ def _propose_with_claude(profile: Profile, moment: Moment, corpus: list[Recipe])
             max_tokens=400,
             messages=[{"role": "user", "content": prompt}],
         )
-        budget.LIMITER.record(MODEL, msg.usage.input_tokens, msg.usage.output_tokens)
+        budget.LIMITER.record(MODEL, msg.usage.input_tokens, msg.usage.output_tokens,
+                              user=profile.user_id)
         text = "".join(b.text for b in msg.content if getattr(b, "type", None) == "text").strip()
         start, end = text.find("["), text.rfind("]")
         ids = json.loads(text[start : end + 1]) if start != -1 else []
