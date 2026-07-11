@@ -91,6 +91,24 @@ def test_delete_erases_profile_and_taste():
     store.delete(uid)                                          # idempotent: deleting nothing is fine
 
 
+def test_last_recipe_roundtrip_clear_and_erasure():
+    from kitchenaid.models import Ingredient, Recipe
+    store = PostgresStore(DSN)
+    uid = _uid("sess")
+    assert store.get_last_recipe(uid) is None
+    r = Recipe(id="r1", name="Test Bowl", cuisine="Thai", time_min=20, servings=2,
+               skill="beginner", equipment=[], diet_tags=[], spice_level=1,
+               ingredients=[Ingredient("white rice", 100)])
+    store.put_last_recipe(uid, r)
+    got = store.get_last_recipe(uid)
+    assert got.name == "Test Bowl" and got.ingredients[0].item == "white rice" and got.spice_level == 1
+    store.put_last_recipe(uid, None)                          # clear the session
+    assert store.get_last_recipe(uid) is None
+    store.put_last_recipe(uid, r)
+    store.delete(uid)                                         # erasure clears session too
+    assert store.get_last_recipe(uid) is None
+
+
 def test_user_create_get_duplicate_and_erasure():
     from kitchenaid.accounts import DuplicateUser
     store = PostgresStore(DSN)

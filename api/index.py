@@ -8,9 +8,9 @@ Vercel's @vercel/python runtime serves the module-level `app`. Configure the pro
 Run migrations once against the database before first use:
   DATABASE_URL=... python -m kitchenaid.store migrate
 
-Serverless note: each invocation is stateless, so the in-memory "last meal" used to attach
-feedback lives only within a warm instance. Profiles and taste persist in Postgres, so the
-core (safe meal, shopping, weekly plan) is unaffected; deep session continuity is future work.
+Serverless note: each invocation is stateless, but the app is built for it — profiles, taste,
+and the last meal (the feedback context) all persist in Postgres, so nothing is lost between
+invocations.
 """
 
 import os

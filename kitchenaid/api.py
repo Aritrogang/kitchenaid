@@ -64,7 +64,12 @@ class KitchenaidService:
         pan = Pantry.from_dict(pantry) if pantry else None
         opts = AgentOptions.from_dict(options)
         taste = self.keeper.load_taste(user_id)                 # Profile Keeper: read
-        resp = self._concierge(user_id).handle(query, prof, pan, taste, opts)
+        conc = self._concierge(user_id)
+        # Load the last meal from the store so feedback attaches to it even when this turn
+        # lands on a fresh (serverless) instance; persist whatever the turn leaves it as.
+        conc.last_recipe = self.keeper.load_last_recipe(user_id)
+        resp = conc.handle(query, prof, pan, taste, opts)
+        self.keeper.save_last_recipe(user_id, conc.last_recipe)
         if opts.taster:                                         # respect the learning toggle
             self.keeper.save_taste(user_id, taste)              # Profile Keeper: write
         return _serialize(resp)

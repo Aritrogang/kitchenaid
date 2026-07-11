@@ -39,8 +39,16 @@ class ProfileKeeper:
     def save_profile(self, user_id: str, profile: Profile) -> None:
         self._store.put_profile(user_id, profile)
 
+    def load_last_recipe(self, user_id: str):
+        """The user's last recommended meal, or None — session memory that survives across
+        stateless turns so feedback ('too spicy') can attach to it."""
+        return self._store.get_last_recipe(user_id)
+
+    def save_last_recipe(self, user_id: str, recipe) -> None:
+        self._store.put_last_recipe(user_id, recipe)
+
     def forget(self, user_id: str) -> None:
-        """Erase everything stored for a user (profile + taste + account) — right to erasure."""
+        """Erase everything stored for a user (profile + taste + session + account)."""
         self._store.delete(user_id)
 
     # --- accounts ---

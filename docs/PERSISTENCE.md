@@ -38,12 +38,13 @@ deploy — already-applied files are skipped.
 
 ## The JSON shape is the contract
 
-Both backends serialize the same `to_dict()` payload (`Profile` and `TasteMemory`), so a user
-can be lifted from files into Postgres by copying the JSON into the `data` column. Further
-stores (spend ledger, sessions) follow the same seam.
+Both backends serialize the same `to_dict()` payload (`Profile`, `TasteMemory`, and the last
+`Recipe`), so a user can be lifted from files into Postgres by copying the JSON into the `data`
+column. The **session** table persists the last meal, so feedback attaches to it even on a
+stateless (serverless) turn — the app has no in-memory dependency across requests.
 
 ## Not yet (tracked for production)
 
 - Connection pooling (`psycopg_pool`) — `PostgresStore` connects per call today.
-- Server-side **spend-ledger** + **session** tables (same seam).
+- Server-side **spend-ledger** table (same seam; the ledger is still a JSONL file).
 - Encryption at rest for the health-adjacent profile fields (see `docs/PRODUCTION_READINESS.md` §4).

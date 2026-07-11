@@ -46,6 +46,17 @@ class Recipe:
             steps=list(d.get("steps", [])),
         )
 
+    def to_dict(self) -> dict:
+        """Round-trips with from_dict — used to persist the last meal (session) across turns."""
+        return {
+            "id": self.id, "name": self.name, "cuisine": self.cuisine,
+            "time_min": self.time_min, "servings": self.servings, "skill": self.skill,
+            "equipment": list(self.equipment), "diet_tags": list(self.diet_tags),
+            "spice_level": self.spice_level,
+            "ingredients": [{"item": i.item, "grams": i.grams} for i in self.ingredients],
+            "steps": list(self.steps),
+        }
+
 
 _SKILL_RANK = {"beginner": 0, "intermediate": 1, "advanced": 2}
 

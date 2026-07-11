@@ -171,6 +171,18 @@ def test_http_delete_profile_is_right_to_erasure():
     assert client.get(f"/profile/{u}").status_code == 404     # nothing left
 
 
+def test_last_meal_survives_a_fresh_service_instance():
+    # Serverless simulation: two independent services sharing a store dir but NO shared memory.
+    store_dir = tempfile.mkdtemp()
+    svc1 = KitchenaidService(ProfileKeeper(store_dir))
+    svc1.chat("s1", "quick dinner", OMNIVORE)                 # meal -> last recipe persisted
+    svc2 = KitchenaidService(ProfileKeeper(store_dir))        # cold start: empty in-memory sessions
+    out = svc2.chat("s1", "that was too spicy", OMNIVORE)     # feedback on the fresh instance
+    assert out["intent"] == "feedback"
+    assert "rank spicy dishes lower" in out["message"].lower()    # attached to the persisted meal
+    assert svc2.keeper.load_taste("s1").spice_tolerance < 0       # and the taste actually moved
+
+
 def _run_standalone():
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for fn in fns:

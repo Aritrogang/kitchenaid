@@ -32,10 +32,10 @@ DATABASE_URL='postgres://…' python -m kitchenaid.store migrate
 Open the deployment: with `KITCHENAID_AUTH_SECRET` set you get the **login screen** — register,
 set your profile, and your data is private to your account.
 
-**Serverless caveat:** Vercel functions are stateless, so the in-memory "last meal" that feedback
-attaches to only lives within a warm instance. Profiles and taste persist in Postgres, so
-meals / shopping / weekly plans are unaffected; persisting the last-meal session is tracked
-follow-up. For an always-on container, use the Render blueprint below.
+**Serverless-ready:** Vercel functions are stateless, but the app is built for it — profiles,
+learned taste, and the last meal (so "that was too spicy" attaches to it) all persist in
+Postgres, so nothing is lost between invocations. An always-on container works too — see the
+Render blueprint below.
 
 ## One-click: Render (API + Postgres)
 

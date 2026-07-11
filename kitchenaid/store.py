@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Optional, Protocol
 
 from .accounts import DuplicateUser
-from .models import Profile
+from .models import Profile, Recipe
 from .taste import TasteMemory
 
 _DEFAULT_STORE = Path(__file__).resolve().parent.parent / "state"
@@ -37,6 +37,9 @@ class Store(Protocol):
     def put_taste(self, user_id: str, memory: TasteMemory) -> None: ...
     def get_profile(self, user_id: str) -> Optional[Profile]: ...
     def put_profile(self, user_id: str, profile: Profile) -> None: ...
+    # Session: the last meal, so feedback attaches to it even across stateless (serverless) turns.
+    def get_last_recipe(self, user_id: str) -> Optional[Recipe]: ...
+    def put_last_recipe(self, user_id: str, recipe: Optional[Recipe]) -> None: ...
     def delete(self, user_id: str) -> None: ...   # erase all of a user's stored data
     # Accounts (username/password login).
     def create_user(self, user_id: str, username: str, password_hash: str) -> None: ...
@@ -72,8 +75,26 @@ class FileStore:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(profile.to_dict(), indent=2), encoding="utf-8")
 
+    def _session_path(self, user_id: str) -> Path:
+        return self.dir / f"{user_id}.session.json"
+
+    def get_last_recipe(self, user_id: str) -> Optional[Recipe]:
+        path = self._session_path(user_id)
+        if not path.exists():
+            return None
+        return Recipe.from_dict(json.loads(path.read_text(encoding="utf-8")))
+
+    def put_last_recipe(self, user_id: str, recipe: Optional[Recipe]) -> None:
+        path = self._session_path(user_id)
+        if recipe is None:
+            path.unlink(missing_ok=True)
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(recipe.to_dict(), indent=2), encoding="utf-8")
+
     def delete(self, user_id: str) -> None:
-        for path in (self._taste_path(user_id), self._profile_path(user_id)):
+        for path in (self._taste_path(user_id), self._profile_path(user_id),
+                     self._session_path(user_id)):
             path.unlink(missing_ok=True)
         users = self._load_users()                       # erase the account too, if any
         for name in [n for n, rec in users.items() if rec.get("user_id") == user_id]:
@@ -127,12 +148,26 @@ class PostgresStore:
     def put_profile(self, user_id: str, profile: Profile) -> None:
         self._upsert("profile", user_id, profile.to_dict())
 
+    def get_last_recipe(self, user_id: str) -> Optional[Recipe]:
+        row = self._get_one("session", user_id)
+        return Recipe.from_dict(row) if row is not None else None
+
+    def put_last_recipe(self, user_id: str, recipe: Optional[Recipe]) -> None:
+        if recipe is None:
+            import psycopg
+            with psycopg.connect(self.dsn) as conn, conn.cursor() as cur:
+                cur.execute("DELETE FROM session WHERE user_id = %s", (user_id,))
+                conn.commit()
+            return
+        self._upsert("session", user_id, recipe.to_dict())
+
     def delete(self, user_id: str) -> None:
         import psycopg
 
         with psycopg.connect(self.dsn) as conn, conn.cursor() as cur:
             cur.execute("DELETE FROM taste WHERE user_id = %s", (user_id,))
             cur.execute("DELETE FROM profile WHERE user_id = %s", (user_id,))
+            cur.execute("DELETE FROM session WHERE user_id = %s", (user_id,))
             cur.execute("DELETE FROM users WHERE user_id = %s", (user_id,))
             conn.commit()
 
