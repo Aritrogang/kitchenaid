@@ -3,10 +3,11 @@
 // source (store.js). No framework, no emojis: inline SVG icons via <use>.
 // =========================================================================
 
-import { sendChat, checkHealth, fetchAgents, ApiError, normalizeBaseUrl } from "./api.js";
+import { sendChat, checkHealth, fetchAgents, login, register, ApiError, normalizeBaseUrl } from "./api.js";
 import {
   ALLERGENS, DEFAULT_API_URL,
   getUserId, getApiUrl, setApiUrl, getTheme, setTheme,
+  getToken, setToken, clearAuth, getUsername, setUsername,
   loadProfile, saveProfile, hasProfile, toWireProfile,
   loadAgentOptions, setAgentOption,
 } from "./store.js";
@@ -576,13 +577,20 @@ async function submitQuery(rawQuery) {
   const options = loadAgentOptions();
 
   try {
-    const data = await sendChat(getApiUrl(), { user_id: userId, query, profile, options });
+    const data = await sendChat(getApiUrl(), { user_id: userId, query, profile, options },
+                                { token: getToken() });
     typing.remove();
     renderAssistantResponse(data);
     // A successful turn proves the backend is up — recover the badge if it was down.
     if (!healthBadge.classList.contains("health-badge--ok")) refreshHealth();
   } catch (err) {
     typing.remove();
+    if (err instanceof ApiError && err.status === 401) {
+      // Token missing/expired — send them back to the login gate.
+      clearAuth();
+      showAuthGate(() => location.reload());
+      return;
+    }
     renderError(err);
     refreshHealth();
   } finally {
@@ -730,19 +738,113 @@ suggestions.addEventListener("click", (e) => {
   submitQuery(chip.dataset.query || chip.textContent);
 });
 
-function boot() {
-  applyTheme(getTheme());
-  buildAllergenChips();
+// ============================================================
+// Auth gate (shown only when the backend has auth enabled)
+// ============================================================
+
+/** Full-screen login/register overlay. Calls onSuccess() once a token is obtained. */
+function showAuthGate(onSuccess) {
+  document.querySelector("#auth-gate")?.remove();
+  let mode = "login";
+
+  const gate = el("div", { cls: "auth-gate", attrs: { id: "auth-gate" } });
+  const card = el("div", { cls: "auth-card" });
+
+  const brand = el("div", { cls: "auth-brand" });
+  brand.append(icon("pot", "icon icon--lg"), el("span", { cls: "auth-brand-name", text: "kitchenaid" }));
+
+  const title = el("h2", { cls: "auth-title" });
+  const sub = el("p", { cls: "auth-sub",
+    text: "Your allergies and preferences are private to your account." });
+
+  const form = el("form", { cls: "auth-form", attrs: { autocomplete: "on" } });
+  const uField = el("input", { cls: "auth-input", attrs: {
+    type: "text", name: "username", placeholder: "Username",
+    autocomplete: "username", required: "", minlength: "3", autocapitalize: "none", spellcheck: "false" } });
+  const pField = el("input", { cls: "auth-input", attrs: {
+    type: "password", name: "password", placeholder: "Password", required: "", minlength: "8" } });
+  const errBox = el("p", { cls: "auth-error", attrs: { role: "alert", hidden: "" } });
+  const submit = el("button", { cls: "btn btn--primary auth-submit", attrs: { type: "submit" } });
+  form.append(uField, pField, errBox, submit);
+
+  const toggle = el("button", { cls: "auth-toggle", attrs: { type: "button" } });
+
+  card.append(brand, title, sub, form, toggle);
+  gate.append(card);
+  document.body.append(gate);
+
+  function applyMode() {
+    title.textContent = mode === "login" ? "Welcome back" : "Create your account";
+    submit.textContent = mode === "login" ? "Log in" : "Create account";
+    pField.setAttribute("autocomplete", mode === "login" ? "current-password" : "new-password");
+    toggle.textContent = mode === "login"
+      ? "New here? Create an account" : "Already have an account? Log in";
+    errBox.hidden = true;
+  }
+  toggle.addEventListener("click", () => { mode = mode === "login" ? "register" : "login"; applyMode(); uField.focus(); });
+  applyMode();
+  setTimeout(() => uField.focus(), 50);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errBox.hidden = true;
+    submit.disabled = true;
+    const creds = { username: uField.value.trim(), password: pField.value };
+    try {
+      const data = await (mode === "login" ? login : register)(getApiUrl(), creds);
+      setToken(data.token);
+      setUsername(creds.username);
+      gate.remove();
+      onSuccess();
+    } catch (err) {
+      errBox.textContent = err instanceof ApiError ? err.message : "Something went wrong. Try again.";
+      errBox.hidden = false;
+      submit.disabled = false;
+    }
+  });
+}
+
+/** Add a "Log out" control to the header once the user is signed in. */
+function addLogoutButton() {
+  if (document.querySelector("#logout-btn")) return;
+  const btn = el("button", { cls: "icon-btn", attrs: {
+    id: "logout-btn", type: "button", title: `Signed in as ${getUsername()} — log out` } });
+  btn.append(icon("lock", "icon"), el("span", { cls: "icon-btn-label", text: "Log out" }));
+  btn.addEventListener("click", () => { clearAuth(); location.reload(); });
+  document.querySelector(".header-actions").append(btn);
+}
+
+// ============================================================
+// Boot
+// ============================================================
+
+/** Render the app itself (post-auth). */
+function startApp(authOn) {
   renderWelcome();
   renderSafetyStrip();
-  syncCreativeIndicator();
   refreshHealth();
-
-  if (!hasProfile()) {
-    setTimeout(openProfile, 350);
-  }
-
+  if (authOn) addLogoutButton();
+  if (!hasProfile()) setTimeout(openProfile, 350);
   queryInput.focus();
+}
+
+async function boot() {
+  applyTheme(getTheme());
+  buildAllergenChips();
+  syncCreativeIndicator();
+
+  // Ask the backend whether auth is required; gate the app if so and we have no token.
+  let authOn = false;
+  try {
+    const health = await checkHealth(getApiUrl());
+    authOn = health?.auth === true;
+  } catch { /* offline — treat as open; refreshHealth will show the badge */ }
+
+  if (authOn && !getToken()) {
+    showAuthGate(() => startApp(true));
+    return;
+  }
+  startApp(authOn);
 }
 
 boot();

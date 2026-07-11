@@ -165,7 +165,7 @@ def create_app():
     from fastapi.middleware.cors import CORSMiddleware
     from pydantic import BaseModel
 
-    app = FastAPI(title="kitchenaid", version="0.1.0",
+    app = FastAPI(title="kitchenaid", version="1.0.0",
                   description="A daily kitchen agent — Concierge over the whole team.")
     # CORS origins from env: "*" (dev default) or a comma-separated allowlist in production.
     _cors = os.environ.get("KITCHENAID_CORS_ORIGINS", "*").strip()

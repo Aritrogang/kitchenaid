@@ -4,6 +4,39 @@ The API ships as a container. The image runs migrations (when `DATABASE_URL` is 
 serves `uvicorn kitchenaid.api:app` on port 8000 as a non-root user, with a `/health`
 container healthcheck.
 
+## Vercel (static web + API as a serverless function)
+
+`vercel.json` deploys both the static web client and the FastAPI backend (a Python serverless
+function) from this repo. The web app calls the API same-origin — no CORS setup needed.
+
+```bash
+npm i -g vercel          # or use npx vercel
+vercel login
+vercel --prod            # from the repo root
+```
+
+Set these in the Vercel project (Settings → Environment Variables), then redeploy:
+
+| Env | Value |
+|---|---|
+| `DATABASE_URL` | a Postgres DSN (Vercel Postgres / Neon, or external) |
+| `KITCHENAID_AUTH_SECRET` | a long random string — turns on username/password login |
+| `ANTHROPIC_API_KEY` | optional — enables the Creative Chef |
+
+Run migrations once against that database (creates the users / profile / taste tables):
+
+```bash
+DATABASE_URL='postgres://…' python -m kitchenaid.store migrate
+```
+
+Open the deployment: with `KITCHENAID_AUTH_SECRET` set you get the **login screen** — register,
+set your profile, and your data is private to your account.
+
+**Serverless caveat:** Vercel functions are stateless, so the in-memory "last meal" that feedback
+attaches to only lives within a warm instance. Profiles and taste persist in Postgres, so
+meals / shopping / weekly plans are unaffected; persisting the last-meal session is tracked
+follow-up. For an always-on container, use the Render blueprint below.
+
 ## One-click: Render (API + Postgres)
 
 `render.yaml` is a Blueprint. In the Render dashboard: **New → Blueprint → connect this repo.**

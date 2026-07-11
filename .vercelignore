@@ -1,0 +1,14 @@
+# Keep the Vercel deploy lean: only the API (kitchenaid + migrations), the web client, and the
+# function entrypoint ship. Everything below is dev/CI/native and not needed at runtime.
+ios/
+tests/
+examples/
+docs/
+.github/
+state/
+eval/
+.env
+*.md
+docker-compose.yml
+Dockerfile
+render.yaml

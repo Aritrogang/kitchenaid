@@ -1,6 +1,6 @@
 [project]
 name = "kitchenaid"
-version = "0.1.0"
+version = "1.0.0"
 description = "A kitchen agent that adapts to your profile, tastes, and the moment."
 requires-python = ">=3.9"
 # Core loop has ZERO required dependencies. The Claude-backed chef is optional.

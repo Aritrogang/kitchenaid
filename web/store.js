@@ -9,6 +9,8 @@ const KEYS = {
   apiUrl: "kitchenaid.api_url",
   theme: "kitchenaid.theme",
   agentOptions: "kitchenaid.agent_options",
+  token: "kitchenaid.token",
+  username: "kitchenaid.username",
 };
 
 export const ALLERGENS = [
@@ -16,7 +18,12 @@ export const ALLERGENS = [
   "wheat", "fish", "shellfish", "sesame",
 ];
 
-export const DEFAULT_API_URL = "http://localhost:8000";
+// Local dev serves the web on :3000 and the API on :8000; a deployed build (e.g. Vercel)
+// serves both from the same origin, so the API is reached with relative paths ("").
+export const DEFAULT_API_URL =
+  (location.hostname === "localhost" || location.hostname === "127.0.0.1")
+    ? "http://localhost:8000"
+    : "";
 
 /** RFC-4122 v4 uuid. Uses crypto.randomUUID when available, else a fallback. */
 function uuid() {
@@ -45,6 +52,27 @@ export function getApiUrl() {
 }
 export function setApiUrl(url) {
   localStorage.setItem(KEYS.apiUrl, url || DEFAULT_API_URL);
+}
+
+// ---------------------------------------------------------------------------
+// Auth — a bearer token issued by the backend's login. Present only when the
+// deployment has auth enabled (KITCHENAID_AUTH_SECRET set).
+// ---------------------------------------------------------------------------
+export function getToken() {
+  return localStorage.getItem(KEYS.token) || "";
+}
+export function setToken(token) {
+  localStorage.setItem(KEYS.token, token);
+}
+export function getUsername() {
+  return localStorage.getItem(KEYS.username) || "";
+}
+export function setUsername(name) {
+  localStorage.setItem(KEYS.username, name);
+}
+export function clearAuth() {
+  localStorage.removeItem(KEYS.token);
+  localStorage.removeItem(KEYS.username);
 }
 
 export function getTheme() {

@@ -52,22 +52,60 @@ export async function fetchAgents(baseUrl, { signal } = {}) {
 }
 
 /**
- * POST /chat — send a natural-language turn.
- * @param {string} baseUrl
- * @param {{user_id:string, query:string, profile:object, options:object}} payload
- * @returns {Promise<object>} the chat response (see API contract)
+ * POST /auth/register or /auth/login — exchange username + password for a bearer token.
+ * Returns { user_id, username, token }. Throws ApiError with the server's detail on failure.
  */
-export async function sendChat(baseUrl, payload, { signal, timeoutMs = 45000 } = {}) {
-  const url = `${normalizeBaseUrl(baseUrl)}/chat`;
-  // Creative (LLM) turns can take several seconds — give them room, but never hang forever.
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  if (signal) signal.addEventListener("abort", () => ctrl.abort(), { once: true });
+export async function register(baseUrl, creds, opts) {
+  return authPost(baseUrl, "/auth/register", creds, opts);
+}
+export async function login(baseUrl, creds, opts) {
+  return authPost(baseUrl, "/auth/login", creds, opts);
+}
+
+async function authPost(baseUrl, path, creds, { signal } = {}) {
+  const url = `${normalizeBaseUrl(baseUrl)}${path}`;
   let res;
   try {
     res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(creds),
+      signal,
+    });
+  } catch (err) {
+    throw new ApiError(err.message || "Network error", { unreachable: true });
+  }
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = typeof body?.detail === "string" ? body.detail : "";
+    } catch { /* ignore */ }
+    throw new ApiError(detail || `That didn't work (${res.status})`, { status: res.status });
+  }
+  return res.json();
+}
+
+/**
+ * POST /chat — send a natural-language turn.
+ * @param {string} baseUrl
+ * @param {{user_id:string, query:string, profile:object, options:object}} payload
+ * @param {{signal?:AbortSignal, timeoutMs?:number, token?:string}} [opts]
+ * @returns {Promise<object>} the chat response (see API contract)
+ */
+export async function sendChat(baseUrl, payload, { signal, timeoutMs = 45000, token } = {}) {
+  const url = `${normalizeBaseUrl(baseUrl)}/chat`;
+  // Creative (LLM) turns can take several seconds — give them room, but never hang forever.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  if (signal) signal.addEventListener("abort", () => ctrl.abort(), { once: true });
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;   // identity when auth is enabled
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers,
       body: JSON.stringify(payload),
       signal: ctrl.signal,
     });

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python",
+      "config": { "includeFiles": ["kitchenaid/**", "migrations/**"] }
+    },
+    { "src": "web/**", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/(health|agents|chat)", "dest": "/api/index.py" },
+    { "src": "/(auth|profile)/(.*)", "dest": "/api/index.py" },
+    { "src": "/", "dest": "/web/index.html" },
+    { "src": "/(.*)", "dest": "/web/$1" }
+  ],
+  "env": {
+    "KITCHENAID_SPEND_LEDGER": "/tmp/kitchenaid_spend.jsonl"
+  }
+}
