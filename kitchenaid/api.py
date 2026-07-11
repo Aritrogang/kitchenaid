@@ -77,6 +77,23 @@ class KitchenaidService:
         self.keeper.save_profile(user_id, prof)
         return prof.to_dict()
 
+    def forget(self, user_id: str) -> dict:
+        """Erase a user's stored profile + taste and drop their in-memory session."""
+        self.keeper.forget(user_id)
+        self._sessions.pop(user_id, None)
+        return {"deleted": True, "user_id": user_id}
+
+
+# A safety/medical disclaimer returned with every answer. An app that makes allergen claims
+# must never imply certainty: the gate checks the profile, but labels and formulations change.
+# This is product copy, NOT a substitute for the legal review tracked in docs/LEGAL.md.
+DISCLAIMER = (
+    "kitchenaid checks each dish against the allergies and diet in your profile, but it can't "
+    "guarantee safety: ingredient labels and recipes change, and cross-contamination happens. "
+    "Always read the packaging yourself, and consult a medical professional for medical dietary "
+    "needs or a diagnosed allergy."
+)
+
 
 # --- serialization (dataclasses -> friendly JSON) ------------------------------------
 
@@ -91,6 +108,7 @@ def _serialize(resp: ConciergeResponse) -> dict:
                   for e in resp.trace],
         "meal": _meal(rec) if rec is not None and rec.chosen is not None else None,
         "grocery": _grocery(resp.shopping) if resp.shopping is not None else None,
+        "disclaimer": DISCLAIMER,
     }
 
 
@@ -199,6 +217,12 @@ def create_app():
         """Create or replace a user's profile. The path's user_id is authoritative."""
         _authorize(identity, user_id)
         return service.put_profile(user_id, profile)
+
+    @app.delete("/profile/{user_id}")
+    def delete_profile(user_id: str, identity: Optional[str] = Depends(_identity)) -> dict:
+        """Erase everything stored for a user — profile and learned taste (right to erasure)."""
+        _authorize(identity, user_id)
+        return service.forget(user_id)
 
     return app
 

@@ -39,6 +39,10 @@ class ProfileKeeper:
     def save_profile(self, user_id: str, profile: Profile) -> None:
         self._store.put_profile(user_id, profile)
 
+    def forget(self, user_id: str) -> None:
+        """Erase everything stored for a user (profile + taste) — the right-to-erasure primitive."""
+        self._store.delete(user_id)
+
     def load_profile(self, path: "str | Path") -> Profile:
         """Load a Profile from a JSON file (used by the CLI)."""
         with open(path, encoding="utf-8") as f:

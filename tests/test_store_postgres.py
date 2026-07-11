@@ -80,6 +80,17 @@ def test_profile_roundtrip_and_upsert():
     assert refreshed.name == "P2" and refreshed.allergies == [] and refreshed.diet == "none"
 
 
+def test_delete_erases_profile_and_taste():
+    store = PostgresStore(DSN)
+    uid = _uid("del")
+    store.put_profile(uid, Profile.from_dict({"user_id": uid, "allergies": ["peanut"]}))
+    store.put_taste(uid, TasteMemory(spice_tolerance=-1.0))
+    store.delete(uid)
+    assert store.get_profile(uid) is None
+    assert store.get_taste(uid).spice_tolerance == 0.0        # fresh again
+    store.delete(uid)                                          # idempotent: deleting nothing is fine
+
+
 def test_make_store_selects_postgres_from_env():
     # DATABASE_URL is set (module skips otherwise), and no explicit dir -> Postgres.
     assert isinstance(make_store(), PostgresStore)

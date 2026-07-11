@@ -68,13 +68,16 @@ The six-agent team is built and tested; these were the Phase 2–5 splits, now d
   Remaining: host it, TLS/reverse proxy, publish to a registry, secrets in a real manager.
 
 ## 4. Safety, compliance, liability
-- 🔴 **Allergen guarantee at scale.** Core is the fail-closed gate (done). Production adds: the
-  complete reviewed allergen DB (§1), graceful UX for "unknown ingredient → refuse" (ask/clarify,
-  don't silently drop), and an **audit log of every gate decision**.
-- 🔴 **Legal: allergy/medical disclaimer + terms.** An app making allergen claims needs legal
-  review, clear disclaimers ("always verify labels yourself"), and a defined liability stance.
-- 🔴 **Privacy.** Profiles are health data (allergies, medical diets). Needs a privacy policy,
-  encryption at rest, and GDPR/CCPA handling as applicable.
+- 🔴 **Allergen guarantee at scale.** Fail-closed gate (done); vocabulary pinned to the big 9 and
+  0 unsafe approvals enforced in CI; in-product disclaimer live. **Still blocking:** professional
+  sign-off + sourced provenance for the ingredient→allergen data (`docs/ALLERGEN_DATA.md`), an
+  audit log of every gate decision, and graceful "unknown ingredient" UX.
+- 🔴 **Legal: disclaimer + terms.** ✅ A disclaimer is returned with every answer and a template
+  is drafted (`docs/LEGAL.md`). **Still blocking:** a lawyer must review the terms/disclaimer and
+  liability stance, plus a recorded user-acceptance flow.
+- 🔴 **Privacy.** ✅ Right-to-erasure endpoint (`DELETE /profile`) and a template are in place
+  (`docs/PRIVACY.md`). **Still blocking:** published policy, lawful basis/consent for health data,
+  encryption-at-rest confirmed, retention + full DSAR (export) flow.
 - 🟡 **Prompt-injection hardening.** The chef consumes user free-text; the deterministic gate
   keeps *safety* intact regardless, but guard generation cost/quality against injection.
 
@@ -98,8 +101,9 @@ The six-agent team is built and tested; these were the Phase 2–5 splits, now d
   property fuzzing lives in `test_gate_properties.py`. Coverage % is tracked as a first-class
   metric. Now wired into CI.
 - ✅ **CI.** GitHub Actions (`.github/workflows/ci.yml`) runs the full suite + the safety eval
-  keyless on every push/PR across Python 3.10–3.12; the eval exits non-zero on any regression,
-  so it gates the build. Remaining: branch protection requiring the check before merge.
+  keyless on every push/PR across Python 3.9–3.12, plus a Postgres-service job and a Docker
+  image build/smoke-test; the eval exits non-zero on any regression, so it gates the build.
+  Remaining: branch protection requiring the checks before merge.
 
 ## 8. UX
 - 🟡 **Fail-closed UX.** Rejecting on unknown ingredients is safe but reads as "broken." Product
@@ -115,3 +119,22 @@ data sources (allergen DB, FDC, pricing), the platform (persistence, auth, API, 
 compliance/ops scaffolding any health-adjacent product needs. The launch-blockers (🔴) cluster
 in **data accuracy, persistence/auth, and legal/privacy** — not in the core engineering, which
 is the point of having earned each piece.
+
+## Launch gate — what's done vs. what a human must still sign off
+
+**Engineering, done + CI-verified:** deterministic fail-closed gate · pluggable Postgres
+persistence (profiles + taste) · opt-in Bearer-token auth with per-user isolation · per-user
+spend caps · containerized API + compose · right-to-erasure · in-product disclaimer · big-9
+allergen invariant · 199 tests + safety eval green on 3.9–3.12.
+
+**Cannot be closed by code alone — required before serving real allergic users:**
+
+- [ ] 🔴 **Allergen data** professionally reviewed + sourced with provenance (`ALLERGEN_DATA.md`).
+- [ ] 🔴 **Legal** review of terms/disclaimer + recorded acceptance flow (`LEGAL.md`).
+- [ ] 🔴 **Privacy** policy, health-data consent, encryption-at-rest, retention (`PRIVACY.md`).
+- [ ] 🟡 **Auth issuance** wired to a real credential provider (OAuth/SSO); token *verification* is done.
+- [ ] 🟡 **Deploy hardening**: restrict CORS, TLS, secrets manager, edge rate-limiting (`SECURITY.md`).
+
+The honest status: **the product is engineering-complete and safe-by-construction, but it is
+not launch-ready for real allergic users until the allergen data and the legal/privacy items
+above are signed off by qualified people.**

@@ -142,6 +142,35 @@ def test_http_profile_endpoints_and_omitted_profile():
     assert client.post("/chat", json={"user_id": ghost, "query": "quick dinner"}).status_code == 400
 
 
+def test_every_answer_carries_the_safety_disclaimer():
+    out = _service().chat("d1", "quick dinner", OMNIVORE)
+    assert "disclaimer" in out
+    d = out["disclaimer"].lower()
+    assert "read the packaging" in d and "medical" in d      # never imply a safety guarantee
+
+
+def test_forget_erases_profile_and_taste():
+    svc = _service()
+    svc.chat("f1", "quick dinner", PEANUT_VEG)                # stores the profile
+    svc.chat("f1", "that was too spicy", PEANUT_VEG)          # learns some taste
+    assert svc.get_profile("f1") is not None
+    assert svc.keeper.load_taste("f1").spice_tolerance < 0
+    assert svc.forget("f1")["deleted"] is True
+    assert svc.get_profile("f1") is None                      # profile gone
+    assert svc.keeper.load_taste("f1").spice_tolerance == 0.0  # taste back to fresh
+
+
+def test_http_delete_profile_is_right_to_erasure():
+    from fastapi.testclient import TestClient
+    from kitchenaid.api import app
+    client = TestClient(app)
+    u = f"del-{uuid.uuid4()}"
+    client.put(f"/profile/{u}", json={"allergies": ["peanut"], "diet": "vegetarian"})
+    assert client.get(f"/profile/{u}").status_code == 200
+    assert client.delete(f"/profile/{u}").json()["deleted"] is True
+    assert client.get(f"/profile/{u}").status_code == 404     # nothing left
+
+
 def _run_standalone():
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     for fn in fns:

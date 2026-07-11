@@ -36,6 +36,7 @@ class Store(Protocol):
     def put_taste(self, user_id: str, memory: TasteMemory) -> None: ...
     def get_profile(self, user_id: str) -> Optional[Profile]: ...
     def put_profile(self, user_id: str, profile: Profile) -> None: ...
+    def delete(self, user_id: str) -> None: ...   # erase all of a user's stored data
 
 
 class FileStore:
@@ -67,6 +68,10 @@ class FileStore:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(profile.to_dict(), indent=2), encoding="utf-8")
 
+    def delete(self, user_id: str) -> None:
+        for path in (self._taste_path(user_id), self._profile_path(user_id)):
+            path.unlink(missing_ok=True)
+
 
 class PostgresStore:
     """Postgres backend: a `taste` row and a `profile` row per user, each `data` a JSONB blob.
@@ -91,6 +96,14 @@ class PostgresStore:
 
     def put_profile(self, user_id: str, profile: Profile) -> None:
         self._upsert("profile", user_id, profile.to_dict())
+
+    def delete(self, user_id: str) -> None:
+        import psycopg
+
+        with psycopg.connect(self.dsn) as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM taste WHERE user_id = %s", (user_id,))
+            cur.execute("DELETE FROM profile WHERE user_id = %s", (user_id,))
+            conn.commit()
 
     # Both tables share the (user_id, data jsonb) shape, so one pair of helpers serves both.
     def _get_one(self, table: str, user_id: str) -> Optional[dict]:
