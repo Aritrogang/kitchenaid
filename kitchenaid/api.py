@@ -12,9 +12,10 @@ FastAPI wiring is a thin layer, guarded so the module imports even without FastA
 Run:  uvicorn kitchenaid.api:app --reload      (needs: pip install fastapi uvicorn)
 """
 
+import uuid
 from typing import Optional
 
-from . import auth
+from . import accounts, auth
 from .concierge import AGENT_TEAM, AgentOptions, Concierge, ConciergeResponse
 from .models import Profile
 from .pantry import Pantry
@@ -78,10 +79,27 @@ class KitchenaidService:
         return prof.to_dict()
 
     def forget(self, user_id: str) -> dict:
-        """Erase a user's stored profile + taste and drop their in-memory session."""
+        """Erase a user's stored profile + taste + account and drop their in-memory session."""
         self.keeper.forget(user_id)
         self._sessions.pop(user_id, None)
         return {"deleted": True, "user_id": user_id}
+
+    def register(self, username: str, password: str) -> dict:
+        """Create an account and return a token. Raises DuplicateUser / ValueError."""
+        accounts.validate_username(username)
+        accounts.validate_password(password)
+        user_id = uuid.uuid4().hex
+        self.keeper.create_user(user_id, username, accounts.hash_password(password))
+        return {"user_id": user_id, "username": username, "token": auth.create_token(user_id)}
+
+    def login(self, username: str, password: str) -> dict:
+        """Verify credentials and return a token. Raises BadCredentials (same for unknown user
+        or wrong password, so the response can't be used to enumerate usernames)."""
+        rec = self.keeper.get_user(username)
+        if rec is None or not accounts.verify_password(password, rec["password_hash"]):
+            raise accounts.BadCredentials()
+        return {"user_id": rec["user_id"], "username": username,
+                "token": auth.create_token(rec["user_id"])}
 
 
 # A safety/medical disclaimer returned with every answer. An app that makes allergen claims
@@ -171,10 +189,12 @@ def create_app():
             raise HTTPException(status_code=403, detail="token identity does not match that user")
 
     class ChatRequest(BaseModel):
-        user_id: str
+        # Optional: with auth on, identity comes from the token and this is ignored; with auth
+        # off, it names the user. Optional[] not `str | None` — pydantic evaluates this on 3.9.
+        user_id: Optional[str] = None
         query: str
-        # Optional now: send it to set/update the stored profile, or omit it and the server
-        # uses the one it already has. Optional[] not `dict | None` — pydantic evaluates this on 3.9.
+        # Optional: send it to set/update the stored profile, or omit it and the server uses
+        # the one it already has.
         profile: Optional[dict] = None
         pantry: Optional[dict] = None
         options: Optional[dict] = None  # agent toggles: creative_chef / shopper / taster
@@ -190,6 +210,36 @@ def create_app():
         The Dietitian is not toggleable by design — safety is structural."""
         return {"agents": AGENT_TEAM}
 
+    class Credentials(BaseModel):
+        username: str
+        password: str
+
+    def _require_auth_configured() -> None:
+        if not auth.enabled():
+            raise HTTPException(status_code=503,
+                                detail="accounts are unavailable: set KITCHENAID_AUTH_SECRET")
+
+    @app.post("/auth/register", status_code=201)
+    def register(creds: Credentials) -> dict:
+        """Create an account (username + password) and return a bearer token. Then PUT your
+        profile and chat with `Authorization: Bearer <token>` — your data is yours alone."""
+        _require_auth_configured()
+        try:
+            return service.register(creds.username, creds.password)
+        except accounts.DuplicateUser:
+            raise HTTPException(status_code=409, detail="username already taken")
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+
+    @app.post("/auth/login")
+    def login(creds: Credentials) -> dict:
+        """Exchange username + password for a fresh bearer token."""
+        _require_auth_configured()
+        try:
+            return service.login(creds.username, creds.password)
+        except accounts.BadCredentials:
+            raise HTTPException(status_code=401, detail="invalid username or password")
+
     @app.post("/chat")
     def chat(req: ChatRequest, identity: Optional[str] = Depends(_identity)) -> dict:
         """Natural-language turn: the Concierge routes to the right agents. Try queries like
@@ -197,6 +247,9 @@ def create_app():
         Omit `profile` to reuse the stored one (400 if none was ever set). With auth on, the
         user is the token subject; the body's user_id is ignored."""
         uid = identity if identity is not None else req.user_id
+        if uid is None:
+            raise HTTPException(status_code=400,
+                                detail="user_id is required (or send a Bearer token when auth is on)")
         try:
             return service.chat(uid, req.query, req.profile, req.pantry, req.options)
         except ProfileRequired as e:

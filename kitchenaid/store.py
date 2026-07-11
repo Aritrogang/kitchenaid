@@ -22,6 +22,7 @@ import os
 from pathlib import Path
 from typing import Optional, Protocol
 
+from .accounts import DuplicateUser
 from .models import Profile
 from .taste import TasteMemory
 
@@ -37,6 +38,9 @@ class Store(Protocol):
     def get_profile(self, user_id: str) -> Optional[Profile]: ...
     def put_profile(self, user_id: str, profile: Profile) -> None: ...
     def delete(self, user_id: str) -> None: ...   # erase all of a user's stored data
+    # Accounts (username/password login).
+    def create_user(self, user_id: str, username: str, password_hash: str) -> None: ...
+    def get_user(self, username: str) -> Optional[dict]: ...   # {user_id, username, password_hash}
 
 
 class FileStore:
@@ -71,6 +75,32 @@ class FileStore:
     def delete(self, user_id: str) -> None:
         for path in (self._taste_path(user_id), self._profile_path(user_id)):
             path.unlink(missing_ok=True)
+        users = self._load_users()                       # erase the account too, if any
+        for name in [n for n, rec in users.items() if rec.get("user_id") == user_id]:
+            users.pop(name)
+        self._write_users(users)
+
+    # --- accounts (a single users.json map, username -> record) ---
+    def _users_path(self) -> Path:
+        return self.dir / "users.json"
+
+    def _load_users(self) -> dict:
+        path = self._users_path()
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+    def _write_users(self, users: dict) -> None:
+        self._users_path().parent.mkdir(parents=True, exist_ok=True)
+        self._users_path().write_text(json.dumps(users, indent=2), encoding="utf-8")
+
+    def create_user(self, user_id: str, username: str, password_hash: str) -> None:
+        users = self._load_users()
+        if username in users:
+            raise DuplicateUser(username)
+        users[username] = {"user_id": user_id, "username": username, "password_hash": password_hash}
+        self._write_users(users)
+
+    def get_user(self, username: str) -> Optional[dict]:
+        return self._load_users().get(username)
 
 
 class PostgresStore:
@@ -103,9 +133,31 @@ class PostgresStore:
         with psycopg.connect(self.dsn) as conn, conn.cursor() as cur:
             cur.execute("DELETE FROM taste WHERE user_id = %s", (user_id,))
             cur.execute("DELETE FROM profile WHERE user_id = %s", (user_id,))
+            cur.execute("DELETE FROM users WHERE user_id = %s", (user_id,))
             conn.commit()
 
-    # Both tables share the (user_id, data jsonb) shape, so one pair of helpers serves both.
+    def create_user(self, user_id: str, username: str, password_hash: str) -> None:
+        import psycopg
+        from psycopg import errors
+
+        try:
+            with psycopg.connect(self.dsn) as conn, conn.cursor() as cur:
+                cur.execute("INSERT INTO users (user_id, username, password_hash) "
+                            "VALUES (%s, %s, %s)", (user_id, username, password_hash))
+                conn.commit()
+        except errors.UniqueViolation:
+            raise DuplicateUser(username)
+
+    def get_user(self, username: str) -> Optional[dict]:
+        import psycopg
+
+        with psycopg.connect(self.dsn) as conn, conn.cursor() as cur:
+            cur.execute("SELECT user_id, username, password_hash FROM users WHERE username = %s",
+                        (username,))
+            row = cur.fetchone()
+        return {"user_id": row[0], "username": row[1], "password_hash": row[2]} if row else None
+
+    # Both taste/profile tables share the (user_id, data jsonb) shape, so one pair serves both.
     def _get_one(self, table: str, user_id: str) -> Optional[dict]:
         import psycopg
 

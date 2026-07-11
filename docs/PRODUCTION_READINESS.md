@@ -52,11 +52,12 @@ The six-agent team is built and tested; these were the Phase 2–5 splits, now d
   (`docs/PERSISTENCE.md`); the API persists the profile and lets later turns omit it
   (`GET`/`PUT /profile/{user_id}`). CI verifies the Postgres path against a real service.
   Remaining on the same seam: pantry, feedback, and the spend ledger; connection pooling.
-- 🟡 **Multi-user + auth.** ✅ Bearer-token auth, opt-in via `KITCHENAID_AUTH_SECRET`: when set,
-  every request's identity comes from a verified signed token (stdlib HS256, fixed-alg,
-  constant-time) — never client input — and a user can only read/write their own profile & taste.
-  Remaining: wire token *issuance* to a real credential source (OAuth / SSO / password) — the
-  deployment's auth-provider choice.
+- ✅ **Multi-user + auth.** Bearer-token auth (opt-in via `KITCHENAID_AUTH_SECRET`): identity
+  comes from a verified signed token (stdlib HS256, fixed-alg, constant-time) — never client
+  input — and a user only touches their own profile & taste. **Issuance is real:** username /
+  password accounts (`POST /auth/register`, `POST /auth/login`; salted PBKDF2, no plaintext).
+  Per-user isolation and right-to-erasure (incl. the account) verified end-to-end over HTTP.
+  Optional later: an external IdP (OAuth / SSO) issuing tokens against the same verify path.
 - ✅ **HTTP API.** Done — [`api.py`](../kitchenaid/api.py): a thin FastAPI adapter over the
   Concierge (`POST /chat`, `GET /health`), per-user session, taste persisted via the Profile
   Keeper, trace returned. `uvicorn kitchenaid.api:app`. Remaining: a **web/mobile client**.
@@ -132,7 +133,7 @@ allergen invariant · 199 tests + safety eval green on 3.9–3.12.
 - [ ] 🔴 **Allergen data** professionally reviewed + sourced with provenance (`ALLERGEN_DATA.md`).
 - [ ] 🔴 **Legal** review of terms/disclaimer + recorded acceptance flow (`LEGAL.md`).
 - [ ] 🔴 **Privacy** policy, health-data consent, encryption-at-rest, retention (`PRIVACY.md`).
-- [ ] 🟡 **Auth issuance** wired to a real credential provider (OAuth/SSO); token *verification* is done.
+- [x] ✅ **Auth issuance** — username/password accounts issue tokens; verification done. External IdP optional.
 - [ ] 🟡 **Deploy hardening**: restrict CORS, TLS, secrets manager, edge rate-limiting (`SECURITY.md`).
 
 The honest status: **the product is engineering-complete and safe-by-construction, but it is
