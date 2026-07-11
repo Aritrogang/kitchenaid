@@ -14,6 +14,7 @@ Run:  uvicorn kitchenaid.api:app --reload      (needs: pip install fastapi uvico
 
 from typing import Optional
 
+from . import auth
 from .concierge import AGENT_TEAM, AgentOptions, Concierge, ConciergeResponse
 from .models import Profile
 from .pantry import Pantry
@@ -123,7 +124,7 @@ def create_app():
     """Build the FastAPI app. Raises ImportError if FastAPI isn't installed."""
     from typing import Optional
 
-    from fastapi import Body, FastAPI, HTTPException
+    from fastapi import Body, Depends, FastAPI, Header, HTTPException
     from fastapi.middleware.cors import CORSMiddleware
     from pydantic import BaseModel
 
@@ -133,6 +134,23 @@ def create_app():
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
                        allow_headers=["*"])
     service = KitchenaidService()
+
+    def _identity(authorization: Optional[str] = Header(default=None)) -> Optional[str]:
+        """The authenticated user when auth is on (KITCHENAID_AUTH_SECRET set), else None.
+        When on, identity comes from a verified Bearer token — never client-supplied input."""
+        if not auth.enabled():
+            return None
+        if not authorization or not authorization.lower().startswith("bearer "):
+            raise HTTPException(status_code=401, detail="missing bearer token")
+        try:
+            return auth.user_from_token(authorization.split(" ", 1)[1].strip())
+        except auth.AuthError as e:
+            raise HTTPException(status_code=401, detail=str(e))
+
+    def _authorize(identity: Optional[str], user_id: str) -> None:
+        """With auth on, you may only touch your own data."""
+        if identity is not None and identity != user_id:
+            raise HTTPException(status_code=403, detail="token identity does not match that user")
 
     class ChatRequest(BaseModel):
         user_id: str
@@ -145,7 +163,7 @@ def create_app():
 
     @app.get("/health")
     def health() -> dict:
-        return {"status": "ok",
+        return {"status": "ok", "auth": auth.enabled(),
                 "agents": ["Concierge", "Chef", "Dietitian", "Shopper", "ProfileKeeper", "Taster"]}
 
     @app.get("/agents")
@@ -155,26 +173,31 @@ def create_app():
         return {"agents": AGENT_TEAM}
 
     @app.post("/chat")
-    def chat(req: ChatRequest) -> dict:
+    def chat(req: ChatRequest, identity: Optional[str] = Depends(_identity)) -> dict:
         """Natural-language turn: the Concierge routes to the right agents. Try queries like
         'quick dinner', 'what do I need to buy for dinner', 'that was too spicy', 'plan my week'.
-        Omit `profile` to reuse the stored one (400 if none was ever set)."""
+        Omit `profile` to reuse the stored one (400 if none was ever set). With auth on, the
+        user is the token subject; the body's user_id is ignored."""
+        uid = identity if identity is not None else req.user_id
         try:
-            return service.chat(req.user_id, req.query, req.profile, req.pantry, req.options)
+            return service.chat(uid, req.query, req.profile, req.pantry, req.options)
         except ProfileRequired as e:
             raise HTTPException(status_code=400, detail=str(e))
 
     @app.get("/profile/{user_id}")
-    def get_profile(user_id: str) -> dict:
+    def get_profile(user_id: str, identity: Optional[str] = Depends(_identity)) -> dict:
         """The stored profile for a user (404 if none set yet)."""
+        _authorize(identity, user_id)
         prof = service.get_profile(user_id)
         if prof is None:
             raise HTTPException(status_code=404, detail=f"No stored profile for user '{user_id}'.")
         return prof
 
     @app.put("/profile/{user_id}")
-    def put_profile(user_id: str, profile: dict = Body(...)) -> dict:
+    def put_profile(user_id: str, profile: dict = Body(...),
+                    identity: Optional[str] = Depends(_identity)) -> dict:
         """Create or replace a user's profile. The path's user_id is authoritative."""
+        _authorize(identity, user_id)
         return service.put_profile(user_id, profile)
 
     return app

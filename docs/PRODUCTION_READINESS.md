@@ -52,8 +52,11 @@ The six-agent team is built and tested; these were the Phase 2–5 splits, now d
   (`docs/PERSISTENCE.md`); the API persists the profile and lets later turns omit it
   (`GET`/`PUT /profile/{user_id}`). CI verifies the Postgres path against a real service.
   Remaining on the same seam: pantry, feedback, and the spend ledger; connection pooling.
-- 🔴 **Multi-user + auth.** Everything is single-user today. Need accounts, authentication, and
-  per-user data isolation (profiles hold health data — see §4).
+- 🟡 **Multi-user + auth.** ✅ Bearer-token auth, opt-in via `KITCHENAID_AUTH_SECRET`: when set,
+  every request's identity comes from a verified signed token (stdlib HS256, fixed-alg,
+  constant-time) — never client input — and a user can only read/write their own profile & taste.
+  Remaining: wire token *issuance* to a real credential source (OAuth / SSO / password) — the
+  deployment's auth-provider choice.
 - ✅ **HTTP API.** Done — [`api.py`](../kitchenaid/api.py): a thin FastAPI adapter over the
   Concierge (`POST /chat`, `GET /health`), per-user session, taste persisted via the Profile
   Keeper, trace returned. `uvicorn kitchenaid.api:app`. Remaining: a **web/mobile client**.

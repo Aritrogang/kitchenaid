@@ -27,6 +27,8 @@ services:
       # Optional — passed through from your shell / .env if set. The gate runs without it;
       # only the Creative Chef's live generation needs a key.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Set to require signed Bearer tokens (identity from the token). Unset => open (dev).
+      KITCHENAID_AUTH_SECRET: ${KITCHENAID_AUTH_SECRET:-}
     ports:
       - "8000:8000"
 
