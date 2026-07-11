@@ -128,6 +128,14 @@ def make_store(store_dir: "str | Path | None" = None) -> Store:
 
 # --- migrations ----------------------------------------------------------------------------
 
+def _sql_statements(text: str) -> list[str]:
+    """Split a migration file into individual statements. Strips `--` line comments first so
+    a semicolon *inside a comment* never fakes a statement boundary (DDL only — no string
+    literals containing `--` or `;`)."""
+    without_comments = "\n".join(line.split("--", 1)[0] for line in text.splitlines())
+    return [s.strip() for s in without_comments.split(";") if s.strip()]
+
+
 def run_migrations(dsn: Optional[str] = None) -> list[str]:
     """Apply any unapplied `migrations/*.sql` in order, tracked in `schema_migrations`.
     Forward-only and idempotent — safe to run on every deploy. Returns the files applied."""
@@ -146,9 +154,8 @@ def run_migrations(dsn: Optional[str] = None) -> list[str]:
         for path in files:
             if path.name in done:
                 continue
-            for statement in (s.strip() for s in path.read_text(encoding="utf-8").split(";")):
-                if statement:
-                    cur.execute(statement)
+            for statement in _sql_statements(path.read_text(encoding="utf-8")):
+                cur.execute(statement)
             cur.execute("INSERT INTO schema_migrations (name) VALUES (%s)", (path.name,))
             applied.append(path.name)
         conn.commit()
