@@ -1,0 +1,33 @@
+# Render Blueprint — one-click deploy of the API + Postgres straight from this repo.
+#
+# In the Render dashboard: New > Blueprint > connect this repo. Render provisions the database,
+# builds the Docker image, runs migrations on start (the container migrates when DATABASE_URL is
+# set), and health-checks /health. Auth is ON out of the box: KITCHENAID_AUTH_SECRET is
+# generated, so every request needs a token — register at POST /auth/register.
+#
+# The only thing to set by hand (optional): ANTHROPIC_API_KEY in the dashboard, to enable the
+# Creative Chef's live generation. The corpus path and the safety gate work without it.
+services:
+  - type: web
+    name: kitchenaid-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kitchenaid-db
+          property: connectionString
+      - key: KITCHENAID_AUTH_SECRET
+        generateValue: true            # strong random secret; auth required
+      - key: KITCHENAID_MAX_USD_PER_USER_PER_DAY
+        value: "0.25"                  # per-user daily spend cap (tune as needed)
+      - key: KITCHENAID_CORS_ORIGINS
+        value: "*"                     # set to your web origin(s) before going public
+      - key: ANTHROPIC_API_KEY
+        sync: false                    # set in the dashboard to enable live generation (optional)
+
+databases:
+  - name: kitchenaid-db
+    plan: free

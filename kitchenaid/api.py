@@ -12,6 +12,7 @@ FastAPI wiring is a thin layer, guarded so the module imports even without FastA
 Run:  uvicorn kitchenaid.api:app --reload      (needs: pip install fastapi uvicorn)
 """
 
+import os
 import uuid
 from typing import Optional
 
@@ -166,8 +167,10 @@ def create_app():
 
     app = FastAPI(title="kitchenaid", version="0.1.0",
                   description="A daily kitchen agent — Concierge over the whole team.")
-    # Open CORS for local dev / a static web client. Production should restrict allow_origins.
-    app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
+    # CORS origins from env: "*" (dev default) or a comma-separated allowlist in production.
+    _cors = os.environ.get("KITCHENAID_CORS_ORIGINS", "*").strip()
+    origins = ["*"] if _cors == "*" else [o.strip() for o in _cors.split(",") if o.strip()]
+    app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["*"],
                        allow_headers=["*"])
     service = KitchenaidService()
 

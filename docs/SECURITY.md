@@ -24,7 +24,8 @@ tested controls — not aspirations.
 
 ## The deployment must still do
 
-- **Restrict CORS.** `allow_origins=["*"]` is for local dev only — pin it to your web origin.
+- **Restrict CORS.** Configurable via `KITCHENAID_CORS_ORIGINS` (defaults to `*` for dev) — set
+  a comma-separated allowlist of your web origin(s) before going public.
 - **TLS.** Terminate HTTPS at a reverse proxy; never serve the API plaintext in production.
 - **Secrets manager.** Move `DATABASE_URL`, `ANTHROPIC_API_KEY`, `KITCHENAID_AUTH_SECRET` out of
   `.env` into your platform's secret store; rotate the auth secret.

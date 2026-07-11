@@ -91,6 +91,21 @@ def test_delete_erases_profile_and_taste():
     store.delete(uid)                                          # idempotent: deleting nothing is fine
 
 
+def test_user_create_get_duplicate_and_erasure():
+    from kitchenaid.accounts import DuplicateUser
+    store = PostgresStore(DSN)
+    uid = _uid("acct")
+    uname = f"user-{uuid.uuid4()}"
+    assert store.get_user(uname) is None
+    store.create_user(uid, uname, "pbkdf2_sha256$1$c2FsdA==$aGFzaA==")
+    rec = store.get_user(uname)
+    assert rec["user_id"] == uid and rec["username"] == uname
+    with pytest.raises(DuplicateUser):
+        store.create_user(_uid("other"), uname, "hash")       # same username -> rejected
+    store.delete(uid)
+    assert store.get_user(uname) is None                       # erasure removed the account
+
+
 def test_make_store_selects_postgres_from_env():
     # DATABASE_URL is set (module skips otherwise), and no explicit dir -> Postgres.
     assert isinstance(make_store(), PostgresStore)
