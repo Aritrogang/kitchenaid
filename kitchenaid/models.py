@@ -88,6 +88,24 @@ class Profile:
             disliked_dishes=list(d.get("disliked_dishes", [])),
         )
 
+    def to_dict(self) -> dict:
+        """Round-trips with from_dict — the shape the store persists and the API returns."""
+        return {
+            "user_id": self.user_id,
+            "name": self.name,
+            "allergies": list(self.allergies),
+            "diet": self.diet,
+            "calories_target": self.calories_target,
+            "protein_target_g": self.protein_target_g,
+            "budget_per_meal_usd": self.budget_per_meal_usd,
+            "equipment": list(self.equipment),
+            "skill": self.skill,
+            "weeknight_minutes": self.weeknight_minutes,
+            "dislikes": list(self.dislikes),
+            "liked_dishes": list(self.liked_dishes),
+            "disliked_dishes": list(self.disliked_dishes),
+        }
+
 
 @dataclass
 class Moment:

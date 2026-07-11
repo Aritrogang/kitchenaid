@@ -20,9 +20,19 @@ from .pantry import Pantry
 from .profile_keeper import ProfileKeeper
 
 
+class ProfileRequired(Exception):
+    """A chat turn arrived with no profile and none is stored for this user."""
+
+    def __init__(self, user_id: str) -> None:
+        super().__init__(
+            f"No profile provided and none stored for user '{user_id}'. Send a profile in the "
+            f"request, or PUT /profile/{user_id} once and omit it thereafter."
+        )
+
+
 class KitchenaidService:
     """Stateful front door for HTTP: one Concierge per user (session memory = last meal),
-    taste persisted per user via the Profile Keeper."""
+    with the profile and learned taste persisted per user via the Profile Keeper."""
 
     def __init__(self, keeper: Optional[ProfileKeeper] = None) -> None:
         self.keeper = keeper or ProfileKeeper()
@@ -33,9 +43,21 @@ class KitchenaidService:
             self._sessions[user_id] = Concierge()
         return self._sessions[user_id]
 
-    def chat(self, user_id: str, query: str, profile: dict, pantry: Optional[dict] = None,
-             options: Optional[dict] = None) -> dict:
-        prof = Profile.from_dict(profile)
+    def _resolve_profile(self, user_id: str, profile: Optional[dict]) -> Profile:
+        """A request may carry the profile (we persist it) or omit it (we load the stored one).
+        The gate always runs on a concrete Profile — never a partial or a guess."""
+        if profile is not None:
+            prof = Profile.from_dict(profile)
+            self.keeper.save_profile(user_id, prof)             # server remembers the latest
+            return prof
+        stored = self.keeper.load_profile_by_id(user_id)
+        if stored is None:
+            raise ProfileRequired(user_id)
+        return stored
+
+    def chat(self, user_id: str, query: str, profile: Optional[dict] = None,
+             pantry: Optional[dict] = None, options: Optional[dict] = None) -> dict:
+        prof = self._resolve_profile(user_id, profile)
         pan = Pantry.from_dict(pantry) if pantry else None
         opts = AgentOptions.from_dict(options)
         taste = self.keeper.load_taste(user_id)                 # Profile Keeper: read
@@ -43,6 +65,16 @@ class KitchenaidService:
         if opts.taster:                                         # respect the learning toggle
             self.keeper.save_taste(user_id, taste)              # Profile Keeper: write
         return _serialize(resp)
+
+    def get_profile(self, user_id: str) -> Optional[dict]:
+        prof = self.keeper.load_profile_by_id(user_id)
+        return prof.to_dict() if prof is not None else None
+
+    def put_profile(self, user_id: str, profile: dict) -> dict:
+        # The path's user_id is authoritative; the body need not repeat it.
+        prof = Profile.from_dict({**profile, "user_id": user_id})
+        self.keeper.save_profile(user_id, prof)
+        return prof.to_dict()
 
 
 # --- serialization (dataclasses -> friendly JSON) ------------------------------------
@@ -91,7 +123,7 @@ def create_app():
     """Build the FastAPI app. Raises ImportError if FastAPI isn't installed."""
     from typing import Optional
 
-    from fastapi import FastAPI
+    from fastapi import Body, FastAPI, HTTPException
     from fastapi.middleware.cors import CORSMiddleware
     from pydantic import BaseModel
 
@@ -105,8 +137,10 @@ def create_app():
     class ChatRequest(BaseModel):
         user_id: str
         query: str
-        profile: dict
-        pantry: Optional[dict] = None   # Optional[] not `dict | None`: pydantic evaluates this on 3.9
+        # Optional now: send it to set/update the stored profile, or omit it and the server
+        # uses the one it already has. Optional[] not `dict | None` — pydantic evaluates this on 3.9.
+        profile: Optional[dict] = None
+        pantry: Optional[dict] = None
         options: Optional[dict] = None  # agent toggles: creative_chef / shopper / taster
 
     @app.get("/health")
@@ -123,8 +157,25 @@ def create_app():
     @app.post("/chat")
     def chat(req: ChatRequest) -> dict:
         """Natural-language turn: the Concierge routes to the right agents. Try queries like
-        'quick dinner', 'what do I need to buy for dinner', 'that was too spicy', 'plan my week'."""
-        return service.chat(req.user_id, req.query, req.profile, req.pantry, req.options)
+        'quick dinner', 'what do I need to buy for dinner', 'that was too spicy', 'plan my week'.
+        Omit `profile` to reuse the stored one (400 if none was ever set)."""
+        try:
+            return service.chat(req.user_id, req.query, req.profile, req.pantry, req.options)
+        except ProfileRequired as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @app.get("/profile/{user_id}")
+    def get_profile(user_id: str) -> dict:
+        """The stored profile for a user (404 if none set yet)."""
+        prof = service.get_profile(user_id)
+        if prof is None:
+            raise HTTPException(status_code=404, detail=f"No stored profile for user '{user_id}'.")
+        return prof
+
+    @app.put("/profile/{user_id}")
+    def put_profile(user_id: str, profile: dict = Body(...)) -> dict:
+        """Create or replace a user's profile. The path's user_id is authoritative."""
+        return service.put_profile(user_id, profile)
 
     return app
 

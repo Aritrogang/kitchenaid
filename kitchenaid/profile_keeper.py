@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Optional
 
 from .models import Profile
-from .store import TasteStore, make_store
+from .store import Store, make_store
 from .taste import TasteMemory
 
 
@@ -22,7 +23,7 @@ class ProfileKeeper:
     back to the default file store. Pass `store=` to inject a backend directly (tests)."""
 
     def __init__(self, store_dir: "str | Path | None" = None, *,
-                 store: "TasteStore | None" = None) -> None:
+                 store: "Store | None" = None) -> None:
         self._store = store if store is not None else make_store(store_dir)
 
     def load_taste(self, user_id: str) -> TasteMemory:
@@ -31,8 +32,14 @@ class ProfileKeeper:
     def save_taste(self, user_id: str, memory: TasteMemory) -> None:
         self._store.put_taste(user_id, memory)
 
+    def load_profile_by_id(self, user_id: str) -> Optional[Profile]:
+        """The stored server-side profile for a user, or None if we've never seen one."""
+        return self._store.get_profile(user_id)
+
+    def save_profile(self, user_id: str, profile: Profile) -> None:
+        self._store.put_profile(user_id, profile)
+
     def load_profile(self, path: "str | Path") -> Profile:
-        """Load a Profile from a JSON file (used by the CLI). Server-side per-user profile
-        persistence rides the same store seam and lands with the auth/multi-user step."""
+        """Load a Profile from a JSON file (used by the CLI)."""
         with open(path, encoding="utf-8") as f:
             return Profile.from_dict(json.load(f))

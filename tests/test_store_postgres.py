@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 pytest.importorskip("psycopg", reason="psycopg not installed")  # skip module if no driver
 
+from kitchenaid.models import Profile  # noqa: E402
 from kitchenaid.profile_keeper import ProfileKeeper  # noqa: E402
 from kitchenaid.store import FileStore, PostgresStore, make_store, run_migrations  # noqa: E402
 from kitchenaid.taste import TasteMemory  # noqa: E402
@@ -63,6 +64,20 @@ def test_upsert_overwrites_not_duplicates():
     store.put_taste(uid, TasteMemory(spice_tolerance=-1.0))
     store.put_taste(uid, TasteMemory(spice_tolerance=-2.0))   # same user, new value
     assert store.get_taste(uid).spice_tolerance == -2.0
+
+
+def test_profile_roundtrip_and_upsert():
+    store = PostgresStore(DSN)
+    uid = _uid("prof")
+    assert store.get_profile(uid) is None                    # absent -> None
+    store.put_profile(uid, Profile.from_dict(
+        {"user_id": uid, "name": "P", "allergies": ["Sesame"], "diet": "Vegan",
+         "budget_per_meal_usd": 9.0}))
+    got = store.get_profile(uid)
+    assert got.allergies == ["sesame"] and got.diet == "vegan" and got.budget_per_meal_usd == 9.0
+    store.put_profile(uid, Profile.from_dict({"user_id": uid, "name": "P2"}))   # upsert, not dup
+    refreshed = store.get_profile(uid)
+    assert refreshed.name == "P2" and refreshed.allergies == [] and refreshed.diet == "none"
 
 
 def test_make_store_selects_postgres_from_env():

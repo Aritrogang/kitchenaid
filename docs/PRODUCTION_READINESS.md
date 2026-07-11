@@ -47,10 +47,11 @@ The six-agent team is built and tested; these were the Phase 2–5 splits, now d
   cost-governor fast path, MCP server over the tools, per-handoff trace.
 
 ## 3. Infrastructure & platform
-- 🟡 **Persistence.** ✅ Taste memory now persists through a pluggable store — Postgres or JSON,
-  selected by `DATABASE_URL` — with forward-only migrations (`docs/PERSISTENCE.md`); CI verifies
-  the Postgres path against a real service. Remaining on the same seam: server-side profiles,
-  pantry, feedback, and the spend ledger; connection pooling.
+- 🟡 **Persistence.** ✅ Server-side **profiles** and learned **taste** now persist through a
+  pluggable store — Postgres or JSON, selected by `DATABASE_URL` — with forward-only migrations
+  (`docs/PERSISTENCE.md`); the API persists the profile and lets later turns omit it
+  (`GET`/`PUT /profile/{user_id}`). CI verifies the Postgres path against a real service.
+  Remaining on the same seam: pantry, feedback, and the spend ledger; connection pooling.
 - 🔴 **Multi-user + auth.** Everything is single-user today. Need accounts, authentication, and
   per-user data isolation (profiles hold health data — see §4).
 - ✅ **HTTP API.** Done — [`api.py`](../kitchenaid/api.py): a thin FastAPI adapter over the

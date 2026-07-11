@@ -10,10 +10,14 @@ Standalone:  python3 tests/test_api.py
 import os
 import sys
 import tempfile
+import uuid
+
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from kitchenaid.api import KitchenaidService  # noqa: E402
+from kitchenaid.api import KitchenaidService, ProfileRequired  # noqa: E402
+from kitchenaid.models import Profile  # noqa: E402
 from kitchenaid.profile_keeper import ProfileKeeper  # noqa: E402
 
 OMNIVORE = {"user_id": "u", "name": "U", "allergies": [], "diet": "none", "budget_per_meal_usd": 8.0}
@@ -81,6 +85,61 @@ def test_http_health_and_chat():
     meal = r2.json()["meal"]
     if meal:
         assert not any("peanut" in i["item"].lower() for i in meal["ingredients"])
+
+
+# --- server-side profile persistence -------------------------------------------------
+
+def test_profile_to_dict_round_trips():
+    p = Profile.from_dict(PEANUT_VEG)
+    assert Profile.from_dict(p.to_dict()).to_dict() == p.to_dict()
+
+
+def test_chat_persists_profile_then_it_can_be_omitted():
+    svc = _service()
+    svc.chat("p1", "quick dinner", PEANUT_VEG)                  # profile sent -> stored server-side
+    assert svc.get_profile("p1")["allergies"] == ["peanut"]
+    # A later turn omits the profile; the stored peanut allergy must still gate the meal.
+    out = svc.chat("p1", "something with noodles")             # no profile argument at all
+    if out["meal"]:
+        assert not any("peanut" in i["item"].lower() for i in out["meal"]["ingredients"])
+
+
+def test_chat_without_profile_and_none_stored_raises():
+    with pytest.raises(ProfileRequired):
+        _service().chat("nobody", "quick dinner")             # nothing sent, nothing stored
+
+
+def test_put_profile_is_authoritative_on_user_id():
+    svc = _service()
+    saved = svc.put_profile("p2", {"name": "Sam", "allergies": ["Sesame"], "diet": "Vegan"})
+    assert saved["user_id"] == "p2"                            # path wins even without it in the body
+    assert saved["allergies"] == ["sesame"] and saved["diet"] == "vegan"   # normalized
+    assert svc.get_profile("p2") == saved
+
+
+def test_http_profile_endpoints_and_omitted_profile():
+    from fastapi.testclient import TestClient
+    from kitchenaid.api import app
+    client = TestClient(app)
+    ghost = f"ghost-{uuid.uuid4()}"
+    webby = f"web-{uuid.uuid4()}"
+
+    assert client.get(f"/profile/{webby}").status_code == 404          # nothing stored yet
+
+    put = client.put(f"/profile/{webby}",
+                     json={"name": "Web", "allergies": ["peanut"], "diet": "vegetarian"})
+    assert put.status_code == 200 and put.json()["allergies"] == ["peanut"]
+    assert client.get(f"/profile/{webby}").json()["diet"] == "vegetarian"
+
+    # chat may now omit profile; the stored peanut allergy still gates at the HTTP boundary
+    r = client.post("/chat", json={"user_id": webby, "query": "noodles please"})
+    assert r.status_code == 200
+    meal = r.json()["meal"]
+    if meal:
+        assert not any("peanut" in i["item"].lower() for i in meal["ingredients"])
+
+    # a user with no stored profile and none in the request -> 400, not a crash
+    assert client.post("/chat", json={"user_id": ghost, "query": "quick dinner"}).status_code == 400
 
 
 def _run_standalone():
