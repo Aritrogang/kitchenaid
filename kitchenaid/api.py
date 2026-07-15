@@ -166,13 +166,53 @@ def create_app():
     """Build the FastAPI app. Raises ImportError if FastAPI isn't installed."""
     from typing import Optional
 
-    from fastapi import Body, Depends, FastAPI, Header, HTTPException
+    from fastapi import Body, Depends, FastAPI, Header, HTTPException, Request
     from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.responses import JSONResponse
     from pydantic import BaseModel
+
+    from .ratelimit import RateLimiter
 
     app = FastAPI(title="kitchenaid", version="1.0.0",
                   description="A daily kitchen agent — Concierge over the whole team.")
-    # CORS origins from env: "*" (dev default) or a comma-separated allowlist in production.
+
+    # --- rate limiting: a per-identity sliding window on the expensive/abusable endpoints.
+    # Configurable per minute; set the value to 0 to disable. /health and /agents are exempt.
+    chat_limiter = RateLimiter(int(os.environ.get("KITCHENAID_RATE_CHAT_PER_MIN", "60")), 60.0)
+    auth_limiter = RateLimiter(int(os.environ.get("KITCHENAID_RATE_AUTH_PER_MIN", "30")), 60.0)
+
+    def _client_ip(request: Request) -> str:
+        fwd = request.headers.get("x-forwarded-for")            # the proxy/edge sets this
+        if fwd:
+            return fwd.split(",")[0].strip()
+        return request.client.host if request.client else "unknown"
+
+    def _rate_key(request: Request) -> str:
+        # Fair keying: the authenticated user when there's a valid token, else the client IP.
+        authz = request.headers.get("authorization", "")
+        if auth.enabled() and authz.lower().startswith("bearer "):
+            try:
+                return "user:" + auth.user_from_token(authz.split(" ", 1)[1].strip())
+            except auth.AuthError:
+                pass
+        return "ip:" + _client_ip(request)
+
+    @app.middleware("http")
+    async def _rate_limit(request: Request, call_next):
+        path = request.url.path
+        limiter = chat_limiter if path == "/chat" else (
+            auth_limiter if path.startswith("/auth/") else None)
+        if limiter is not None and limiter.enabled:
+            ok, retry = limiter.check(_rate_key(request))
+            if not ok:
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "Too many requests — please slow down and try again."},
+                    headers={"Retry-After": str(int(retry) + 1)},
+                )
+        return await call_next(request)
+
+    # CORS added AFTER the limiter so it stays outermost — even a 429 carries CORS headers.
     _cors = os.environ.get("KITCHENAID_CORS_ORIGINS", "*").strip()
     origins = ["*"] if _cors == "*" else [o.strip() for o in _cors.split(",") if o.strip()]
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["*"],

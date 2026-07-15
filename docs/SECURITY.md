@@ -21,6 +21,11 @@ tested controls — not aspirations.
   API keys in tracked files. Config is injected at runtime.
 - **Safety disclaimer** returned with every answer (`disclaimer` field) — the product never
   implies an allergen guarantee.
+- **Rate limiting.** A per-identity sliding window on `/chat` and `/auth/*` (keyed by the
+  logged-in user when there's a token, else client IP; `429` + `Retry-After`), configurable via
+  `KITCHENAID_RATE_CHAT_PER_MIN` / `KITCHENAID_RATE_AUTH_PER_MIN`. Blunts brute-force and runaway
+  paid-AI cost. In-memory, so on multi-instance serverless it's per-instance — a durable backend
+  (Redis/Postgres) or an edge limiter is the upgrade for a true global limit.
 
 ## The deployment must still do
 
@@ -30,7 +35,7 @@ tested controls — not aspirations.
 - **Secrets manager.** Move `DATABASE_URL`, `ANTHROPIC_API_KEY`, `KITCHENAID_AUTH_SECRET` out of
   `.env` into your platform's secret store; rotate the auth secret.
 - **Token issuance.** Wire `create_token` to a real credential source (OAuth / SSO / password).
-- **Rate limiting** at the edge (per-IP / per-token) — the spend cap limits cost, not request volume.
+- **Durable/edge rate limiting** for multi-instance serverless (the in-code limiter is per-instance).
 - **Dependency & image scanning** in CI (e.g. `pip-audit`, Trivy) before publishing images.
 
 ## Reporting

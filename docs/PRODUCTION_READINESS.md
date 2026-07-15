@@ -134,7 +134,8 @@ allergen invariant · 199 tests + safety eval green on 3.9–3.12.
 - [ ] 🔴 **Legal** review of terms/disclaimer + recorded acceptance flow (`LEGAL.md`).
 - [ ] 🔴 **Privacy** policy, health-data consent, encryption-at-rest, retention (`PRIVACY.md`).
 - [x] ✅ **Auth issuance** — username/password accounts issue tokens; verification done. External IdP optional.
-- [ ] 🟡 **Deploy hardening**: restrict CORS, TLS, secrets manager, edge rate-limiting (`SECURITY.md`).
+- [ ] 🟡 **Deploy hardening**: restrict CORS, TLS, secrets manager (`SECURITY.md`). ✅ App-level
+      rate limiting on `/chat` + `/auth/*` is in; a durable/edge limiter is the multi-instance upgrade.
 
 The honest status: **the product is engineering-complete and safe-by-construction, but it is
 not launch-ready for real allergic users until the allergen data and the legal/privacy items
