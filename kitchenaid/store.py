@@ -222,12 +222,22 @@ def make_store(store_dir: "str | Path | None" = None) -> Store:
     """
     if store_dir is not None:
         return FileStore(store_dir)
-    dsn = os.getenv("DATABASE_URL")
+    dsn = _database_url()
     if dsn:
         return PostgresStore(dsn)
     # No database: files. KITCHENAID_STATE_DIR lets a read-only-FS host (e.g. serverless)
     # point the store at a writable path like /tmp; otherwise the repo's state/ dir.
     return FileStore(os.getenv("KITCHENAID_STATE_DIR") or _DEFAULT_STORE)
+
+
+def _database_url() -> Optional[str]:
+    """The Postgres DSN. Accepts DATABASE_URL or Vercel Postgres's POSTGRES_URL* names,
+    preferring a direct (non-pooling) connection so DDL and psycopg behave predictably."""
+    for name in ("DATABASE_URL", "POSTGRES_URL_NON_POOLING", "POSTGRES_URL"):
+        v = os.getenv(name)
+        if v:
+            return v
+    return None
 
 
 # --- migrations ----------------------------------------------------------------------------
@@ -245,7 +255,9 @@ def run_migrations(dsn: Optional[str] = None) -> list[str]:
     Forward-only and idempotent — safe to run on every deploy. Returns the files applied."""
     import psycopg
 
-    dsn = dsn or os.environ["DATABASE_URL"]
+    dsn = dsn or _database_url()
+    if not dsn:
+        raise RuntimeError("set DATABASE_URL (or POSTGRES_URL) to run migrations")
     files = sorted(_MIGRATIONS_DIR.glob("*.sql"))
     applied: list[str] = []
     with psycopg.connect(dsn) as conn, conn.cursor() as cur:
