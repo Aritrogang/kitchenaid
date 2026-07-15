@@ -16,6 +16,7 @@
     { "src": "/(.*)", "dest": "/web/$1" }
   ],
   "env": {
-    "KITCHENAID_SPEND_LEDGER": "/tmp/kitchenaid_spend.jsonl"
+    "KITCHENAID_SPEND_LEDGER": "/tmp/kitchenaid_spend.jsonl",
+    "KITCHENAID_STATE_DIR": "/tmp/kitchenaid_state"
   }
 }

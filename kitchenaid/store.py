@@ -223,7 +223,11 @@ def make_store(store_dir: "str | Path | None" = None) -> Store:
     if store_dir is not None:
         return FileStore(store_dir)
     dsn = os.getenv("DATABASE_URL")
-    return PostgresStore(dsn) if dsn else FileStore(_DEFAULT_STORE)
+    if dsn:
+        return PostgresStore(dsn)
+    # No database: files. KITCHENAID_STATE_DIR lets a read-only-FS host (e.g. serverless)
+    # point the store at a writable path like /tmp; otherwise the repo's state/ dir.
+    return FileStore(os.getenv("KITCHENAID_STATE_DIR") or _DEFAULT_STORE)
 
 
 # --- migrations ----------------------------------------------------------------------------

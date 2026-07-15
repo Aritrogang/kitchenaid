@@ -12,3 +12,6 @@ eval/
 docker-compose.yml
 Dockerfile
 render.yaml
+# Exclude pyproject so Vercel's Python builder uses pip + requirements.txt (not uv on the
+# whole project, whose optional extras conflict across the 3.9–3.12 support range).
+pyproject.toml
