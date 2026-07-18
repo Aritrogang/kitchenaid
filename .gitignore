@@ -11,3 +11,4 @@ eval/spend_ledger.jsonl
 eval/resolution_misses.jsonl
 state/
 .hypothesis/
+.vercel
