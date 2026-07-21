@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 
 from . import budget, config, data
@@ -133,9 +134,72 @@ def _rank(profile: Profile, moment: Moment, corpus: list[Recipe], taste=None) ->
     return scored
 
 
+# Words that carry no dish signal — dropped before matching so "something quick for dinner"
+# doesn't score every recipe equally.
+_QUERY_STOPWORDS = {
+    "the", "and", "for", "with", "some", "something", "that", "this", "have", "has", "got",
+    "need", "want", "make", "made", "give", "please", "dinner", "lunch", "breakfast", "meal",
+    "food", "dish", "recipe", "tonight", "today", "quick", "easy", "fast", "simple", "minute",
+    "minutes", "under", "using", "use", "from", "about", "just", "really", "would", "like",
+    "can", "you", "are", "its", "but", "not", "what", "should", "cook", "eat", "any", "much",
+}
+
+
+def _query_terms(query: str) -> set:
+    """Content words from the user's request, with a crude singular form so 'tacos' matches
+    'taco' and 'noodles' matches 'noodle'."""
+    terms = set()
+    for w in re.findall(r"[a-z]+", (query or "").lower()):
+        if len(w) < 3 or w in _QUERY_STOPWORDS:
+            continue
+        terms.add(w)
+        if w.endswith("es") and len(w) > 4:
+            terms.add(w[:-2])
+        elif w.endswith("s") and len(w) > 3:
+            terms.add(w[:-1])
+    return terms
+
+
+def _query_relevance(recipe: Recipe, query: str) -> float:
+    """How well this recipe answers what the user actually asked for.
+
+    Without this the ranker only saw structured fields (on-hand, time, skill), so 'korean tofu
+    bowl' and 'italian pasta' scored identically and returned the same dish. Ranking only
+    reorders candidates — the Dietitian still gates every one, so relevance can never make an
+    unsafe dish win.
+    """
+    terms = _query_terms(query)
+    if not terms:
+        return 0.0
+    cuisine = (recipe.cuisine or "").lower()
+    name = recipe.name.lower()
+    items = " ".join(ing.item.lower() for ing in recipe.ingredients)
+
+    score = 0.0
+    for t in terms:
+        if cuisine and t in cuisine:
+            score += 4.0          # "thai", "mexican" — the strongest intent signal
+        if t in name:
+            score += 3.0          # "curry", "tacos", "stir-fry", "soup"
+        if t in items:
+            score += 2.0          # "tofu", "mushroom", "chickpeas"
+
+    # explicit heat preference, with a simple negation guard
+    q = (query or "").lower()
+    wants_mild = any(p in q for p in ("mild", "not spicy", "no spice", "not too spicy", "less spicy"))
+    if wants_mild:
+        score += 1.5 * (3 - recipe.spice_level)
+    elif any(p in q for p in ("spicy", "spice", "hot ")):
+        score += 1.5 * recipe.spice_level
+    return score
+
+
 def _score(recipe: Recipe, profile: Profile, moment: Moment, taste=None) -> float:
     items = {ing.item.lower() for ing in recipe.ingredients}
     score = 0.0
+
+    # honor the user's actual words (cuisine / dish / ingredients / heat)
+    score += _query_relevance(recipe, moment.query)
 
     # use up what's expiring (highest weight), then what's on hand
     score += 3.0 * len({x.lower() for x in moment.expiring} & items)

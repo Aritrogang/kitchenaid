@@ -126,6 +126,9 @@ class Moment:
     on_hand: list[str] = field(default_factory=list)
     expiring: list[str] = field(default_factory=list)
     servings: int = 2
+    # The user's own words, kept verbatim so the ranker can honor what they actually asked for
+    # (cuisine, dish type, ingredients, spice) — not just the structured fields parsed out above.
+    query: str = ""
 
 
 @dataclass

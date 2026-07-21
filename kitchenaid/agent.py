@@ -52,7 +52,7 @@ def parse_moment(query: str, profile: Profile) -> Moment:
     Deliberately naive (keyword/regex). Real intent routing is the Concierge's job (Phase 5).
     """
     q = query.lower()
-    moment = Moment(servings=2)
+    moment = Moment(servings=2, query=query)   # keep the raw words for relevance ranking
 
     # on-hand ingredients: scan known ingredient keys + aliases
     keys = list(data.nutrition_table().keys())
