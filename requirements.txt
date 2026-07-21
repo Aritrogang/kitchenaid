@@ -1,6 +1,8 @@
 # Runtime deps for the Vercel Python function (the API). The core kitchenaid package itself
 # has zero required deps; these are the API + database driver. uvicorn is NOT needed on Vercel
-# (the platform provides the ASGI server); anthropic is optional (live generation) and omitted
-# so the default deploy runs the safe corpus path.
+# (the platform provides the ASGI server).
 fastapi>=0.100
 psycopg[binary]>=3.1
+# Live Creative Chef. Generation only fires when ANTHROPIC_API_KEY is set AND the user turns
+# Creative mode on, and every invented dish still goes through the deterministic Dietitian gate.
+anthropic>=0.40
